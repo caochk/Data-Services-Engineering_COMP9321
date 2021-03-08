@@ -34,7 +34,8 @@ def question_1(exposure, countries):
 
     #################################################
     df_exposureTemp = pd.read_csv(exposure, sep=';', encoding='latin-1')
-    df_exposure = df_exposureTemp[~df_exposureTemp.isna().any(axis=1)]
+    # df_exposure = df_exposureTemp[~df_exposureTemp.isna().any(axis=1)]
+    df_exposure = df_exposureTemp.dropna(subset=['country'])
     df_countriesTemp = pd.read_csv(countries)
     df_countries = df_countriesTemp.rename(str.lower, axis='columns')
     df2 = pd.merge(df_exposure, df_countries, how='inner', on='country')
@@ -57,7 +58,25 @@ def question_2(df1):
     """
 
     #################################################
-    # Your code goes here ...
+    pd.set_option('display.width', 100) # to be deleted
+    pd.set_option('max_colwidth', 1000000) # to be deleted
+    pd.set_option('display.max_rows', 300) # to be deleted
+
+    dfLatitudeTemp = df1['cities'].str.extractall('(?P<latitude>"Latitude":-?\d+.\d+)')
+    dfLatitude = dfLatitudeTemp['latitude'].str.extractall('(?P<latitude>-?\d+.\d+)')
+    dfLatitude["latitude"] = pd.to_numeric(dfLatitude["latitude"], errors='coerce')
+    dfAvgLatitude = dfLatitude.groupby('Country')['latitude'].mean()
+
+
+    dfLongitudeTemp = df1['cities'].str.extractall('(?P<longitude>"Longitude":-?\d+.\d+)')
+    dfLongitude = dfLongitudeTemp['longitude'].str.extractall('(?P<longitude>-?\d+.\d+)')
+    dfLongitude["longitude"] = pd.to_numeric(dfLongitude["longitude"], errors='coerce')
+    dfAvgLongitude = dfLongitude.groupby('Country')['longitude'].mean()
+
+    df2Temp = df1.join(dfAvgLatitude)
+    df2 = df2Temp.join(dfAvgLongitude)
+
+    df2 = df2.rename(columns={'latitude': 'avg_latitude', 'longitude': 'avg_longitude'})
     #################################################
 
     log("QUESTION 2", output_df=df2[["avg_latitude", "avg_longitude"]], other=df2.shape)
