@@ -5,6 +5,7 @@ import sys
 import os
 import numpy as np
 import math
+import re
 
 studentid = os.path.basename(sys.modules[__name__].__file__)
 
@@ -114,7 +115,7 @@ def question_4(df2, continents):
     """
 
     #################################################
-    df_countriesContinents = pd.read_csv('Countries-Continents.csv')
+    df_countriesContinents = pd.read_csv(continents)
     df_countriesContinents.set_index('Country', inplace=True)
     df4_temp = df2.join(df_countriesContinents)
     df4_temp['Covid_19_Economic_exposure_index'].replace("x", "0,0", inplace=True)
@@ -137,12 +138,25 @@ def question_4(df2, continents):
 def question_5(df2):
     """
     :param df2: the dataframe created in question 2
-    :return: cities_lst
-            Data Type: list
+    :return: df5
+            Data Type: dataframe
             Please read the assignment specs to know how to create the output dataframe
     """
     #################################################
-    # Your code goes here ...
+    df5_temp1 = df2.loc[:, ['Income classification according to WB', 'Foreign direct investment', 'Net_ODA_received_perc_of_GNI']]
+    df5_temp2 = df5_temp1.drop(df5_temp1[df5_temp1.Net_ODA_received_perc_of_GNI == 'No data'].index)
+    df5_temp3 = df5_temp2.drop(df5_temp2[df5_temp2['Foreign direct investment'] == 'x'].index)
+    df5_temp3['Net_ODA_received_perc_of_GNI'].replace("(\d+),(\d+)", r"\1.\2", inplace=True, regex=True)
+    df5_temp3['Foreign direct investment'].replace("(\d+),(\d+)", r"\1.\2", inplace=True, regex=True)
+    df5_temp3["Net_ODA_received_perc_of_GNI"] = pd.to_numeric(df5_temp3["Net_ODA_received_perc_of_GNI"], errors='coerce')
+    df5_temp3["Foreign direct investment"] = pd.to_numeric(df5_temp3["Foreign direct investment"], errors='coerce')
+    df5_temp4 = df5_temp3.groupby('Income classification according to WB').mean()
+    df5_temp4 = df5_temp4.reset_index()
+    df5_temp5 = df5_temp4.rename(columns={'Income classification according to WB': 'Income Class', 'Foreign direct investment': 'Avg Foreign direct investment', 'Net_ODA_received_perc_of_GNI': 'Avg_Net_ODA_received_perc_of_GNI'})
+    df5 = df5_temp5.set_index('Income Class', drop=False)
+    # print(df5_temp4)
+    # print(df5_temp3.dtypes)
+    # df5.to_csv(path_or_buf="df5.csv", index=False)
     #################################################
 
     log("QUESTION 5", output_df=df5, other=df5.shape)
@@ -152,7 +166,7 @@ def question_5(df2):
 def question_6(df2):
     """
     :param df2: the dataframe created in question 2
-    :return: lst
+    :return: cities_lst
             Data Type: list
             Please read the assignment specs to know how to create the output dataframe
     """
