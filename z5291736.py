@@ -114,7 +114,20 @@ def question_4(df2, continents):
     """
 
     #################################################
-
+    df_countriesContinents = pd.read_csv('Countries-Continents.csv')
+    df_countriesContinents.set_index('Country', inplace=True)
+    df4_temp = df2.join(df_countriesContinents)
+    df4_temp['Covid_19_Economic_exposure_index'].replace("x", "0,0", inplace=True)
+    df4_temp['Covid_19_Economic_exposure_index'].replace("(\d+),(\d+)", r"\1.\2", inplace=True, regex=True)
+    df4_temp["Covid_19_Economic_exposure_index"] = pd.to_numeric(df4_temp["Covid_19_Economic_exposure_index"], errors='coerce')
+    # print("------------------START--------------------")
+    df4_temp2 = df4_temp.groupby('Continent')['Covid_19_Economic_exposure_index'].mean()
+    df4_temp3 = df4_temp2.reset_index()
+    df4_temp4 = df4_temp3.set_index('Continent', drop=False)
+    df4 = df4_temp4.sort_values(by=['Covid_19_Economic_exposure_index'])
+    # print(df4)
+    # print(df4_temp2)
+    # df4_temp.to_csv(path_or_buf="df4Temp.csv", index=False)
     #################################################
 
     log("QUESTION 4", output_df=df4, other=df4.shape)
