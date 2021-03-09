@@ -92,7 +92,12 @@ def question_3(df2):
     """
 
     #################################################
-    # Your code goes here ...
+    df2['latitudeDifference'] = df2['avg_latitude'].apply(lambda x: math.radians(x) - math.radians(30.5928))
+    df2['longitudeDifference'] = df2['avg_longitude'].apply(lambda x: math.radians(x) - math.radians(114.3055))
+    print(df2.dtypes)
+    df2['distance_to_Wuhan'] = df2.loc[:, ['latitudeDifference', 'longitudeDifference', 'avg_latitude']].apply(lambda x: 6373 * (2 * math.asin(math.sqrt(math.pow(math.sin(x.iloc[0] / 2), 2) + math.cos(math.radians(x.iloc[2])) * math.cos(math.radians(30.5928)) * math.pow(math.sin(x.iloc[1] / 2), 2)))), axis = 1)
+    df3 = df2.sort_values(by=['distance_to_Wuhan'])
+    df3.drop(['latitudeDifference', 'longitudeDifference'], inplace=True, axis=1)
     #################################################
 
     log("QUESTION 3", output_df=df3[['distance_to_Wuhan']], other=df3.shape)
@@ -109,7 +114,7 @@ def question_4(df2, continents):
     """
 
     #################################################
-    # Your code goes here ...
+
     #################################################
 
     log("QUESTION 4", output_df=df4, other=df4.shape)
