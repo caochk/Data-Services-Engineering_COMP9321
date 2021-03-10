@@ -34,7 +34,7 @@ def question_1(exposure, countries):
     """
 
     #################################################
-    df_exposureTemp = pd.read_csv(exposure, sep=';', encoding='latin-1')
+    df_exposureTemp = pd.read_csv(exposure, sep=';', encoding='latin-1', low_memory=False)
     # df_exposure = df_exposureTemp[~df_exposureTemp.isna().any(axis=1)]
     df_exposure = df_exposureTemp.dropna(subset=['country'])
     df_countriesTemp = pd.read_csv(countries)
@@ -95,7 +95,7 @@ def question_3(df2):
     #################################################
     df2['latitudeDifference'] = df2['avg_latitude'].apply(lambda x: math.radians(x) - math.radians(30.5928))
     df2['longitudeDifference'] = df2['avg_longitude'].apply(lambda x: math.radians(x) - math.radians(114.3055))
-    print(df2.dtypes)
+    # print(df2.dtypes)
     df2['distance_to_Wuhan'] = df2.loc[:, ['latitudeDifference', 'longitudeDifference', 'avg_latitude']].apply(lambda x: 6373 * (2 * math.asin(math.sqrt(math.pow(math.sin(x.iloc[0] / 2), 2) + math.cos(math.radians(x.iloc[2])) * math.cos(math.radians(30.5928)) * math.pow(math.sin(x.iloc[1] / 2), 2)))), axis = 1)
     df3 = df2.sort_values(by=['distance_to_Wuhan'])
     df3.drop(['latitudeDifference', 'longitudeDifference'], inplace=True, axis=1)
@@ -172,7 +172,25 @@ def question_6(df2):
     """
     cities_lst = []
     #################################################
-    # Your code goes here ...
+    # print("----------------START--------------------")
+    df6_temp1 = df2[df2['Income classification according to WB']=='LIC']
+    # print(df6_temp1)
+    # df6_temp1.to_csv(path_or_buf="df6Temp1.csv", index=False)
+    df6_temp2 = df6_temp1['cities']
+    df6_temp3 = df6_temp2.str.extractall('"City":"(\w+)"')+df6_temp2.str.extractall('"Population"(:\d+.\d+)')
+    # df6_temp4 = df6_temp3.iloc[:, 0]
+    df6_temp4 = df6_temp3.iloc[:, 0].str.split(':', expand=True)
+    df6_temp5 = df6_temp4.reset_index()
+    df6_temp5.iloc[:, 3] = pd.to_numeric(df6_temp5.iloc[:, 3], errors='coerce')
+    df6_temp5.columns = ["Country", "match", "city", "population"]
+    df6_temp6 = df6_temp5.sort_values(by=['population'], ascending=False)
+    df6 = df6_temp6.iloc[:5, 2]
+    cities_lst = df6.values.tolist()
+    lst = cities_lst
+    # df6_temp6 = df6_temp5.sort_value(by)
+    # print(df6)
+    # df6_temp4.to_csv(path_or_buf="df6temp7.csv", index=False)
+    # print("--------------------END----------------------")
     #################################################
 
     log("QUESTION 6", output_df=None, other=cities_lst)
