@@ -182,7 +182,7 @@ def question_6(df2):
     df6_temp4 = df6_temp3.iloc[:, 0].str.split(':', expand=True)
     df6_temp5 = df6_temp4.reset_index()
     df6_temp5.iloc[:, 3] = pd.to_numeric(df6_temp5.iloc[:, 3], errors='coerce')
-    df6_temp5.columns = ["Country", "match", "city", "population"]
+    df6_temp5.columns = ["Country", "match", "city", "population"] #给没有列名的列添加名字
     df6_temp6 = df6_temp5.sort_values(by=['population'], ascending=False)
     df6 = df6_temp6.iloc[:5, 2]
     cities_lst = df6.values.tolist()
@@ -206,7 +206,13 @@ def question_7(df2):
     """
 
     #################################################
-    # Your code goes here ...
+    # print("----------------")
+    # df7_temp1 = df2['cities'].str.extractall('"City":"(\w+)"')
+    # df7_temp2 = df7_temp1.reset_index()
+    # df7_temp2.columns = ["Country", "match", "city"]
+    # df7_temp3 = df7_temp2.groupby('Country').count()
+    # print(df7_temp3)
+    # print("------------------")
     #################################################
 
     log("QUESTION 7", output_df=df7, other=df7.shape)
@@ -221,7 +227,32 @@ def question_8(df2, continents):
     """
 
     #################################################
-    # Your code goes here ...
+    print("-------8------")
+    df2_1 = df2.reset_index()
+    # print(df2_1)
+    df_continents = pd.read_csv(continents)
+    # print(continents)
+    df8_temp1 = df2_1.merge(df_continents, left_on='Country', right_on='Country', how='inner')
+    df8_temp2 = df8_temp1['cities']
+    df8_temp3 = df8_temp2.str.extractall('"Population":(\d+.\d+)')
+    # df8_temp2.to_csv(path_or_buf="df8Temp2.csv", index=False)
+    df8_temp3.columns = ["population"]
+    df8_temp3["population"] = pd.to_numeric(df8_temp3["population"], errors='coerce')
+    worldPopulation = df8_temp3['population'].sum()
+    df8_temp4 = df8_temp1[df8_temp1['Continent'] == 'South America']
+    df8_temp5 = df8_temp4.set_index('Country')
+    df8_temp6 = df8_temp5['cities'].str.extractall('"Population":(\d+.\d+)')
+    df8_temp6.columns = ["population"]
+    df8_temp6["population"] = pd.to_numeric(df8_temp6["population"], errors='coerce')
+    df8_temp6['percentageOfPopulation'] = df8_temp6['population'].apply(lambda x: x/worldPopulation)
+    df8_temp7 = df8_temp6.reset_index()
+    df8_temp8 = df8_temp7.groupby('Country')['percentageOfPopulation'].sum()
+    df8_temp9 = df8_temp8.reset_index()
+    # df8_temp9.plot.pie(subplots=True)
+    # plt.show()
+    # print(df8_temp9.dtypes)
+    # df8_temp4.to_csv(path_or_buf="df8temp4.csv", index=False)
+    print("-------8------")
     #################################################
 
     plt.savefig("{}-Q11.png".format(studentid))
@@ -234,7 +265,7 @@ def question_9(df2):
     """
 
     #################################################
-    # Your code goes here ...
+
     #################################################
 
     plt.savefig("{}-Q12.png".format(studentid))
@@ -261,7 +292,7 @@ if __name__ == "__main__":
     df4 = question_4(df2.copy(True), "Countries-Continents.csv")
     df5 = question_5(df2.copy(True))
     lst = question_6(df2.copy(True))
-    df7 = question_7(df2.copy(True))
+    # df7 = question_7(df2.copy(True))
     question_8(df2.copy(True), "Countries-Continents.csv")
     question_9(df2.copy(True))
     question_10(df2.copy(True), "Countries-Continents.csv")
