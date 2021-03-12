@@ -227,7 +227,7 @@ def question_8(df2, continents):
     """
 
     #################################################
-    print("-------8------")
+    # print("-------8------")
     df2_1 = df2.reset_index()
     # print(df2_1)
     df_continents = pd.read_csv(continents)
@@ -247,12 +247,13 @@ def question_8(df2, continents):
     df8_temp6['percentageOfPopulation'] = df8_temp6['population'].apply(lambda x: x/worldPopulation)
     df8_temp7 = df8_temp6.reset_index()
     df8_temp8 = df8_temp7.groupby('Country')['percentageOfPopulation'].sum()
-    df8_temp9 = df8_temp8.reset_index()
-    # df8_temp9.plot.pie(subplots=True)
+    # df8_temp9 = df8_temp8.reset_index()
+    # df8_temp8.to_csv(path_or_buf="df8temp8.csv", index=False)
+    # df8_temp8.plot.pie(y='percentageOfPopulation', autopct='%.4f')
+    df8_temp8.plot(kind='bar', figsize=(16,10))
     # plt.show()
     # print(df8_temp9.dtypes)
-    # df8_temp4.to_csv(path_or_buf="df8temp4.csv", index=False)
-    print("-------8------")
+    # print("-------8------")
     #################################################
 
     plt.savefig("{}-Q11.png".format(studentid))
@@ -265,7 +266,34 @@ def question_9(df2):
     """
 
     #################################################
+    # print("-----------9-----") #再自己加一个copy函数可以消除吗？
+    df9_temp1 = df2.iloc[:, [1, 19, 20, 16, 17]]
+    df9_temp1.loc[:, "Foreign direct investment, net inflows percent of GDP"].replace("x", "0,0", inplace=True)
+    df9_temp1.loc[:, "Foreign direct investment"].replace("x", "0,0", inplace=True)
+    df9_temp1.loc[:, 'Covid_19_Economic_exposure_index_Ex_aid_and_FDI'].replace("(\d+),(\d+)", r"\1.\2", inplace=True, regex=True)
+    df9_temp1.loc[:, 'Covid_19_Economic_exposure_index_Ex_aid_and_FDI_and_food_import'].replace("(\d+),(\d+)", r"\1.\2", inplace=True, regex=True)
+    df9_temp1.loc[:, 'Foreign direct investment, net inflows percent of GDP'].replace("(\d+),(\d+)", r"\1.\2", inplace=True, regex=True)
+    df9_temp1.loc[:, 'Foreign direct investment'].replace("(\d+),(\d+)", r"\1.\2", inplace=True, regex=True)
 
+    df9_temp1.loc[:, "Covid_19_Economic_exposure_index_Ex_aid_and_FDI"] = pd.to_numeric(df9_temp1.loc[:, "Covid_19_Economic_exposure_index_Ex_aid_and_FDI"], errors='coerce')
+    df9_temp1.loc[:, "Covid_19_Economic_exposure_index_Ex_aid_and_FDI_and_food_import"] = pd.to_numeric(df9_temp1.loc[:, "Covid_19_Economic_exposure_index_Ex_aid_and_FDI_and_food_import"], errors='coerce')
+    df9_temp1.loc[:, "Foreign direct investment, net inflows percent of GDP"] = pd.to_numeric(df9_temp1.loc[:, "Foreign direct investment, net inflows percent of GDP"], errors='coerce')
+    df9_temp1.loc[:, "Foreign direct investment"] = pd.to_numeric(df9_temp1.loc[:, "Foreign direct investment"], errors='coerce')
+
+    # df9_temp2 = pd.to_numeric(df9_temp1.loc[:, "Covid_19_Economic_exposure_index_Ex_aid_and_FDI"], errors='coerce')
+    # df9_temp2 = pd.to_numeric(df9_temp1.loc[:, "Covid_19_Economic_exposure_index_Ex_aid_and_FDI_and_food_import"], errors='coerce')
+    # df9_temp2 = pd.to_numeric(df9_temp1.loc[:, "Foreign direct investment, net inflows percent of GDP"], errors='coerce')
+    # df9_temp2 = pd.to_numeric(df9_temp1.loc[:, "Foreign direct investment"], errors='coerce')
+    # #
+    df9_temp2 = df9_temp1.groupby('Income classification according to WB').mean()
+    df9_temp3 = df9_temp2.T
+    #
+    df9_temp3.plot(kind='bar', figsize=(16, 16))
+    plt.xticks(rotation=50, fontsize=13)
+    # plt.show()
+    # print(df9_temp1)
+    # df9_temp1.to_csv(path_or_buf="df9temp1.csv", index=False)
+    # print("----------9-------")
     #################################################
 
     plt.savefig("{}-Q12.png".format(studentid))
@@ -279,7 +307,40 @@ def question_10(df2, continents):
     """
 
     #################################################
-    # Your code goes here ...
+    # print("--------10----------")
+    df2_1 = df2.reset_index()
+    df_continents = pd.read_csv(continents)
+    df10_temp1 = df2_1.merge(df_continents, left_on='Country', right_on='Country', how='inner')
+    df10_temp2 = df10_temp1.set_index('Country')
+    df10_temp3 = df10_temp2['cities']
+    df10_temp4 = df10_temp3.str.extractall('"Population":(\d+.\d+)')
+    df10_temp4.columns = ['population']
+    df10_temp4["population"] = pd.to_numeric(df10_temp4["population"], errors='coerce')
+    df10_temp5 = df10_temp4.groupby('Country')['population'].sum()
+    df10_temp5.reset_index()
+    df10_temp6 = pd.merge(df10_temp5, df10_temp1, how='inner', on='Country')
+    df10_temp7 = df10_temp6.iloc[:, [0, 1, 24, 25, 26]]
+
+    sizeOfCountries = (df10_temp7['population']/650000).values.tolist()#按照人口画国家大小
+
+    df10_temp7.insert(loc=5, column='colour', value=0)
+    df_colour = df10_temp7.loc[:, ['Continent', 'colour']]
+    df_colour.loc[df_colour.Continent == 'Asia', 'colour'] = 'r'
+    df_colour.loc[df_colour.Continent == 'Europe', 'colour'] = 'm'
+    df_colour.loc[df_colour.Continent == 'Africa', 'colour'] = 'y'
+    df_colour.loc[df_colour.Continent == 'North America', 'colour'] = 'b'
+    df_colour.loc[df_colour.Continent == 'Oceania', 'colour'] = 'c'
+    df_colour.loc[df_colour.Continent == 'South America', 'colour'] = 'g'
+    colours = df_colour.loc[:, 'colour'].tolist()
+
+    continent = df_colour.loc[:, 'Continent'].tolist()
+
+    df10_temp7.plot.scatter(x='avg_longitude', y='avg_latitude', s=sizeOfCountries, c=colours)
+    plt.legend(continent)
+    # plt.show()
+    # print(df_colour)
+    # df_colour.to_csv(path_or_buf="df_colour.csv", index=False)
+    # print("-----------10-------------")
     #################################################
 
     plt.savefig("{}-Q13.png".format(studentid))
@@ -294,5 +355,5 @@ if __name__ == "__main__":
     lst = question_6(df2.copy(True))
     # df7 = question_7(df2.copy(True))
     question_8(df2.copy(True), "Countries-Continents.csv")
-    question_9(df2.copy(True))
+    # question_9(df2.copy(True))
     question_10(df2.copy(True), "Countries-Continents.csv")
