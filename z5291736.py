@@ -206,13 +206,32 @@ def question_7(df2):
     """
 
     #################################################
-    # print("----------------")
-    # df7_temp1 = df2['cities'].str.extractall('"City":"(\w+)"')
-    # df7_temp2 = df7_temp1.reset_index()
-    # df7_temp2.columns = ["Country", "match", "city"]
-    # df7_temp3 = df7_temp2.groupby('Country').count()
-    # print(df7_temp3)
-    # print("------------------")
+    print("--------7--------")
+    df7_temp1 = df2['cities'].str.extractall('"City":"(\w+)"')
+    df7_temp2 = df7_temp1.reset_index()
+    df7_temp2.columns = ["Country", "match", "city"]
+    df7_temp3 = df7_temp2['city'].value_counts()
+    # df7_temp3.reset_index()
+    # df7_temp3.columns = ["city", "amount"]
+    df7_temp4 = pd.DataFrame({'city': df7_temp3.index, 'amount': df7_temp3.values})
+    df7_temp5 = df7_temp2.merge(df7_temp4, left_on='city', right_on='city', how='inner')
+    # df7_temp4 = df7_temp2.groupby('Country')
+    df7_temp6 = df7_temp5.drop(columns=['match'])
+    df7_temp7 = df7_temp6.drop_duplicates(keep=False)
+    df7_temp8 = df7_temp7.drop(df7_temp7[df7_temp7.amount < 2].index)
+
+    df7_temp9 = df7_temp8['city'].value_counts()
+    df7_temp10 = pd.DataFrame({'city': df7_temp9.index, 'amount': df7_temp9.values})
+    df7_temp11 = df7_temp10.merge(df7_temp2, left_on='city', right_on='city', how='inner')
+    df7_temp12 = df7_temp11.drop(columns=['match'])
+    df7_temp13 = df7_temp12.drop_duplicates(keep=False)
+    df7_temp14 = df7_temp13.drop(df7_temp13[df7_temp13.amount < 2].index)
+
+    df7_temp15 = df7_temp14.groupby(['city']).agg(country=('Country', lambda x: ','.join(x)))
+    df7_temp16 = df7_temp15.reset_index()
+    df7 = df7_temp16.set_index('city')
+    # print(df7_temp16)
+    print("---------7---------")
     #################################################
 
     log("QUESTION 7", output_df=df7, other=df7.shape)
@@ -353,7 +372,7 @@ if __name__ == "__main__":
     df4 = question_4(df2.copy(True), "Countries-Continents.csv")
     df5 = question_5(df2.copy(True))
     lst = question_6(df2.copy(True))
-    # df7 = question_7(df2.copy(True))
+    df7 = question_7(df2.copy(True))
     question_8(df2.copy(True), "Countries-Continents.csv")
     # question_9(df2.copy(True))
     question_10(df2.copy(True), "Countries-Continents.csv")
