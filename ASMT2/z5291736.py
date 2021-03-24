@@ -12,8 +12,49 @@ api = Api(app, title="Dataset for TV shows", description="This dataset allows\
                                                           clients to read and store some\
                                                          TV shows.")
 
-# the model of name for the TV show
-# name = api.model('name', {'name': fields.String})
+# the model of the TV show
+tv_model = api.model('tv', {
+    'tvmaze_id': fields.Integer,
+    'id': fields.Integer,
+    'last-update': fields.String,
+    'name': fields.String,
+    'type': fields.String,
+    'language': fields.String,
+    'genres': fields.List(fields.String),
+    'status': fields.String,
+    'runtime': fields.String,
+    'premiered': fields.String,
+    'officialSite': fields.String,
+    # 'schedule': {
+    #     'time': fields.String,
+    #     'days': fields.List(fields.String)
+    # },
+    # 'rating': {
+    #     'average': fields.String,
+    # },
+    'weight': fields.Integer,
+    # 'network': {
+    #     'id': fields.Integer,
+    #     'name': fields.String,
+    #     'country': {
+    #         'name': fields.String,
+    #         'code': fields.String,
+    #         'timezone': fields.String,
+    #     },
+    # },
+    'summary': fields.String
+    # '_links': {
+    #     'self': {
+    #         'href': fields.String,
+    #     },
+    #     'previous': {
+    #         'href': fields.String,
+    #     },
+    #     'next': {
+    #         'href': fields.String,
+    #     },
+    # }
+})
 
 
 # def handle_db():
@@ -165,15 +206,17 @@ class question1(Resource):
                     'rating text, network_id integer, network_name text, network_country_name text, network_country_code text, network_country_timezone text, '
                     'summary text, last_update text)')
         # solve id issue [RIGHT!]
-        cur.execute('select max(id) from tvTable')
+        cur.execute('SELECT max(id) FROM tvTable')
         max_id = cur.fetchall() # fetchall返回的是一个二维列表
         if max_id[0][0] == None: #说明tvTable里面没有任何元组
             id = 1
         else:
             id = int(max_id[0][0]) + 1 # 必须配合好上一个id
 
+        # print("tvData:", tvData)
         # check if invalid name
-        if tvData == []: # invalid
+        if tvData == None: # invalid
+            # print("\nENTER\n")
             return {'message': 'This TV show does not exist.'}, 404
         else: # valid
             df_tv = tvData_to_dataFrame(tvData, id)
@@ -193,11 +236,11 @@ class question1(Resource):
 
 @api.param('id', 'The identifier of every TV show in database')
 @api.route('/tv-shows/<int:id>')
-class question2(Resource):
+class question2_3_4(Resource):
     # question2
     @api.response(400, 'Invalid id')
     @api.response(404, 'id not found')
-    @api.response(200, 'Created')
+    @api.response(200, 'Retrieved')
     def get(self, id):
         # 以下代码是怕万一用户上来就直接执行get命令，那么此时未经过Q1的建表就根本没有表格供其查询，所以依然先建表（空不空无所谓）
         con = sqlite3.connect('z5291736.db')
@@ -215,16 +258,16 @@ class question2(Resource):
             return {'message': 'The id of this TV show is invalid.'}, 400
 
         # 再判断记录不存在的情况
-        cur.execute(f"select id from tvTable where id = {id}")
+        cur.execute(f"SELECT id FROM tvTable WHERE id = {id}")
         id_result = cur.fetchall()
         if id_result == []:
             return {'message': 'Cannot find a TV show whit this id.'}, 404
         else:
-            cur.execute(f"select id, tvmaze_id, name, links_previous, links_current, links_next, type, language, status, runtime, premiered, "
+            cur.execute(f"SELECT id, tvmaze_id, name, links_previous, links_current, links_next, type, language, status, runtime, premiered, "
                         f"officialSite, weight, genres, schedule_time, schedule_days, rating, network_id, "
-                        f"network_name, network_country_name, network_country_code, network_country_timezone, summary, last_update from tvTable where id={id}")
+                        f"network_name, network_country_name, network_country_code, network_country_timezone, summary, last_update FROM tvTable WHERE id={id}")
             result = cur.fetchall()
-            print("result:", result)
+            # print("result:", result)
             id = result[0][0]
             tvmaze_id = result[0][1]
             name = result[0][2]
@@ -271,6 +314,85 @@ class question2(Resource):
                                                                                "timezone": network_country_timezone}},
                 "summary": summary, "_links": {"self": {"href": links_current}, "previous": {"href": links_previous}, "next": {"href": links_next}}
             }, 200
+
+    # question3
+    @api.response(400, 'Invalid id')
+    @api.response(404, 'id not found')
+    @api.response(200, 'Deleted')
+    def delete(self, id):
+        # 以下代码是怕万一用户上来就直接执行get命令，那么此时未经过Q1的建表就根本没有表格供其查询，所以依然先建表（空不空无所谓）
+        con = sqlite3.connect('z5291736.db')
+        cur = con.cursor()
+        cur.execute(
+            'CREATE TABLE IF NOT EXISTS tvTable (id integer, tvmaze_id integer, name text, links_previous text, links_current text, links_next text, '
+            'type text, language text, '
+            'status text, runtime text, premiered text, officialSite text, weight integer, genres text, schedule_time text, schedule_days text, '
+            'rating text, network_id integer, network_name text, network_country_name text, network_country_code text, network_country_timezone text, '
+            'summary text, last_update text)')
+
+        # 先判断用户输入的id本身是不是合理的：是否为整数、是否为正数
+        if id < 1 or isinstance(id, int) == False:
+            # print("11111\n", type(id))
+            return {'message': 'The id of this TV show is invalid.'}, 400
+
+        # 再判断记录不存在的情况
+        cur.execute(f"SELECT id FROM tvTable WHERE id = {id}")
+        id_result = cur.fetchall()
+        if id_result == []:
+            return {'message': 'Cannot find a TV show whit this id.'}, 404
+        else:
+            cur.execute(f'DELETE FROM tvTable WHERE id = {id}')
+            con.commit()
+            # print("111:", cur.fetchall()) #如果返回的为[]说明被删了
+
+            return {
+                "message": f"The tv show with id {id} was removed from the database!",
+                "id": id
+            }, 200
+
+    # question4
+    @api.response(400, 'Invalid id')
+    @api.response(404, 'id not found')
+    @api.response(200, 'Updated')
+    @api.expect(tv_model)
+    def patch(self, id):
+        # 以下代码是怕万一用户上来就直接执行get命令，那么此时未经过Q1的建表就根本没有表格供其查询，所以依然先建表（空不空无所谓）
+        con = sqlite3.connect('z5291736.db')
+        cur = con.cursor()
+        cur.execute(
+            'CREATE TABLE IF NOT EXISTS tvTable (id integer, tvmaze_id integer, name text, links_previous text, links_current text, links_next text, '
+            'type text, language text, '
+            'status text, runtime text, premiered text, officialSite text, weight integer, genres text, schedule_time text, schedule_days text, '
+            'rating text, network_id integer, network_name text, network_country_name text, network_country_code text, network_country_timezone text, '
+            'summary text, last_update text)')
+
+        # 先判断用户输入的id本身是不是合理的：是否为整数、是否为正数
+        if id < 1 or isinstance(id, int) == False:
+            # print("11111\n", type(id))
+            return {'message': 'The id of this TV show is invalid.'}, 400
+
+        tv = request.json #取得payload并转换为json
+        print(type(tv)) #已确认为字典类型<class 'dict'>
+        print("\ntv.keys:", tv.keys()) #确实会打印出来那些我在sagger中写了的想要修改值的键
+        tv['last_update'] = tv.pop('last-update') #所以这里会出错，因为不是每次都想改last-update
+
+
+        # 再判断记录不存在的情况
+        cur.execute(f"SELECT id FROM tvTable WHERE id = {id}")
+        id_result = cur.fetchall()
+        if id_result == []:
+            return {'message': 'Cannot find a TV show whit this id.'}, 404
+        else:
+            # update the value
+            for key in tv:
+                # unexpected key
+                # if key not in tv_model.keys() or key not in tv_model['schedule'].keys() or key not in tv_model['network'].keys()\
+                #         or key not in tv_model['network']['country'].keys() or key not in tv_model['_links']:
+                #     return {"message": "Property {} is invalid".format(key)}, 400
+
+                cur.execute(f'UPDATE tvTable set key = tv[key] WHERE id = {id}')
+                con.commit()
+
 
 
 
