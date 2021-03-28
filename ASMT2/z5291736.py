@@ -6,14 +6,75 @@ import datetime
 from flask import Flask, request
 from flask_restx import Resource, Api, fields
 import pandas as pd
+from math import ceil
+import copy
 
 app = Flask(__name__)
-api = Api(app, title="Dataset for TV shows", description="This dataset allows\
+api = Api(app, default="TV show", title="Dataset for TV shows", description="This dataset allows\
                                                           clients to read and store some\
                                                          TV shows.")
 
-# the model of the TV show
-tv_model = api.model('tv', {
+
+# the model of the TV show【方式2】【失败】【用于Q4】
+
+# schedule = {}
+# schedule['time'] = fields.String(attribute='time')
+# schedule['days'] = fields.List(fields.String, attribute='days')
+# schedule_payload = api.model('schedule', schedule)
+#
+# rating = {}
+# rating['average'] = fields.String(attribute='average')
+# rating_payload = api.model('rating', rating)
+#
+# country = {}
+# country['name'] = fields.String(attribute='name')
+# country['code'] = fields.String(attribute='code')
+# country['timezone'] = fields.String(attribute='timezone')
+# country_payload = api.model('country', country)
+# network_payload = api.model('network', {
+#     'id': fields.Integer,
+#     'name': fields.String,
+#     'country': fields.Nested(country_payload)
+# })
+#
+# self = {}
+# self['href'] = fields.String(attribute='href')
+# self_payload = api.model('self', self)
+# previous = {}
+# previous['href'] = fields.String(attribute='href')
+# previous_payload = api.model('previous', previous)
+# next = {}
+# next['href'] = fields.String(attribute='href')
+# next_payload = api.model('next', next)
+# links_payload = api.model('links', {
+#     'self': fields.Nested(self),
+#     'previous': fields.Nested(previous),
+#     'next': fields.Nested(next)
+# })
+#
+# tv_payload = api.model('tv', {
+#     'tvmaze_id': fields.Integer,
+#     'id': fields.Integer,
+#     'last-update': fields.String,
+#     'name': fields.String,
+#     'type': fields.String,
+#     'language': fields.String,
+#     'genres': fields.List(fields.String),
+#     'status': fields.String,
+#     'runtime': fields.String,
+#     'premiered': fields.String,
+#     'officialSite': fields.String,
+#     'schedule': fields.Nested(schedule_payload),
+#     'rating': fields.Nested(rating_payload),
+#     'weight': fields.Integer,
+#     'network': fields.Nested(network_payload),
+#     'summary': fields.String,
+#     '_links': fields.Nested(links_payload)
+# })
+
+# the model of the TV show【方式1】【model中若没有字典套字典可以通过】【用于Q4】
+
+tv_model = api.model('tv model', {
     'tvmaze_id': fields.Integer,
     'id': fields.Integer,
     'last-update': fields.String,
@@ -42,7 +103,7 @@ tv_model = api.model('tv', {
     #         'timezone': fields.String,
     #     },
     # },
-    'summary': fields.String
+    'summary': fields.String,
     # '_links': {
     #     'self': {
     #         'href': fields.String,
@@ -56,17 +117,6 @@ tv_model = api.model('tv', {
     # }
 })
 
-
-# def handle_db():
-
-
-# def create_db():
-#     tv = requests.get('http://http://api.tvmaze.com/search/shows?q=TITLE')
-#     data = tv.json()
-#
-#     con = sqlite3.connect('z5291736.db')
-#     cur = con.cursor()
-#     cur.execute('CREATE TABLE tvData (name text)')
 
 def tvData_to_dataFrame(tvData_element, id):
     columns = ["id", "tvmaze_id", "name", "links_previous", "links_current", "links_next", "type", "language", "status", "runtime", "premiered",
@@ -180,9 +230,6 @@ def tvData_to_dataFrame(tvData_element, id):
     # rowIndex += 1
 
     return df_tv
-
-
-
 
 
 @api.route('/tv-shows/import')
@@ -339,7 +386,7 @@ class question2_3_4(Resource):
         cur.execute(f"SELECT id FROM tvTable WHERE id = {id}")
         id_result = cur.fetchall()
         if id_result == []:
-            return {'message': 'Cannot find a TV show whit this id.'}, 404
+            return {'message': 'Cannot find a TV show with this id.'}, 404
         else:
             cur.execute(f'DELETE FROM tvTable WHERE id = {id}')
             con.commit()
@@ -355,6 +402,7 @@ class question2_3_4(Resource):
     @api.response(404, 'id not found')
     @api.response(200, 'Updated')
     @api.expect(tv_model)
+    # @api.marshal_with(tv_payload)
     def patch(self, id):
         # 以下代码是怕万一用户上来就直接执行get命令，那么此时未经过Q1的建表就根本没有表格供其查询，所以依然先建表（空不空无所谓）
         con = sqlite3.connect('z5291736.db')
@@ -372,9 +420,13 @@ class question2_3_4(Resource):
             return {'message': 'The id of this TV show is invalid.'}, 400
 
         tv = request.json #取得payload并转换为json
-        print(type(tv)) #已确认为字典类型<class 'dict'>
-        print("\ntv.keys:", tv.keys()) #确实会打印出来那些我在sagger中写了的想要修改值的键
-        tv['last_update'] = tv.pop('last-update') #所以这里会出错，因为不是每次都想改last-update
+        # print(type(tv)) #已确认为字典类型<class 'dict'>
+        # print("\ntv.keys:", tv.keys()) #确实会打印出来那些我在sagger中写了的想要修改值的键
+        if 'last-update' in tv:
+            tv['last_update'] = tv.pop('last-update')  # 键名换成和数据库中一致的
+
+        # print("\ntv.keys1:", tv.keys())
+
 
 
         # 再判断记录不存在的情况
@@ -390,9 +442,216 @@ class question2_3_4(Resource):
                 #         or key not in tv_model['network']['country'].keys() or key not in tv_model['_links']:
                 #     return {"message": "Property {} is invalid".format(key)}, 400
 
-                cur.execute(f'UPDATE tvTable set key = tv[key] WHERE id = {id}')
+                cur.execute(f'UPDATE tvTable set {key} = {tv[key]} WHERE id = {id}')
                 con.commit()
 
+
+@api.response(400, 'Invalid input')
+@api.response(404, 'No TV show')
+@api.response(200, 'OK')
+@api.param('order_by', 'a comma separated string value to sort the list')
+@api.param('page', 'used for pagination')
+@api.param('page_size', 'used for pagination')
+@api.param('filter', 'used to show what attribute should be shown')
+@api.route('/tv-shows')
+class question5(Resource):
+    def get(self):
+        # 获取用户输入的参数，包括order_by,page, page, page_size, filter
+        order_by = request.args.get('order_by')
+        page = request.args.get('page')
+        page_size = request.args.get('page_size')
+        filter = request.args.get('filter')
+
+        # 以下代码是怕万一用户上来就直接执行get命令，那么此时未经过Q1的建表就根本没有表格供其查询，所以依然先建表（空不空无所谓）
+        con = sqlite3.connect('z5291736.db')
+        cur = con.cursor()
+        cur.execute(
+            'CREATE TABLE IF NOT EXISTS tvTable (id integer, tvmaze_id integer, name text, links_previous text, links_current text, links_next text, '
+            'type text, language text, '
+            'status text, runtime text, premiered text, officialSite text, weight integer, genres text, schedule_time text, schedule_days text, '
+            'rating text, network_id integer, network_name text, network_country_name text, network_country_code text, network_country_timezone text, '
+            'summary text, last_update text)')
+
+        # 用户未输入某参数时，则采用默认值
+        if order_by == None:
+            order_by = '+id'
+        if page == None:
+            page = '1'
+        if page_size == None:
+            page_size = '100'
+        if filter == None:
+            filter = 'id,name'
+
+        # 对order_by进行处理，因为是由逗号分隔的字符串且包含了+、-号；filter也一样列表化
+        # 先去除order_by和filter字符串内的空格，方便后续使用split
+        order_by_no_space = ''
+        for i in order_by:
+            if i != ' ':
+                order_by_no_space += i
+            else:
+                continue
+
+        filter_no_space = ''
+        for i in filter:
+            if i != ' ':
+                filter_no_space += i
+            else:
+                continue
+
+        # 若由逗号隔开多个值则用split，不然直接放入列表
+        order_by_list = order_by_no_space.split(',')
+        filter_list = filter_no_space.split(',')
+
+        # 检查所有输入的参数是否valid
+        # 先检查page,page_size参数是否只由数字构成
+        if page.isdigit() == False or page_size.isdigit() == False:
+            return {'message': 'The page and page_size parameters can only be numeric.'}, 400 # 【通过】
+        # 再检查order_by和filter参数是否包含了允许字符之外的字符
+        standard_order_dy = ['+id', '-id', '+name', '-name', '+runtime', '-runtime', '+premiered', '-premiered',
+                             '+rating-average', '-rating-average']
+        standard_filter = ['tvmaze_id', 'id', 'last-update', 'name', 'type', 'language',
+                           'genres', 'status', 'runtime', 'premiered', 'officialSite', 'schedule', 'rating',
+                           'weight', 'network', 'summary']
+        for i in order_by_list:
+            if i not in standard_order_dy:
+                return {'message': 'The order_by parameter is invalid.'}, 400 # 【通过】
+
+        for i in filter_list:
+            if i not in standard_filter:
+                return {'message': 'The filter parameter is invalid.'}, 400 # 【通过】
+
+        # 开始从sqlite中进行查询
+        # 构建查询语句前的处理工作
+        # filter_list的前序处理：扩列
+        filter_query_string = ''
+        count = 1
+        for i in filter_list:
+            if i == 'last-update':
+                filter_query_string += 'last_update'
+            elif i == 'schedule':
+                filter_query_string += 'schedule_time,'
+                filter_query_string += 'schedule_days'
+            elif i == 'network':
+                filter_query_string += 'network_id,'
+                filter_query_string += 'network_name,'
+                filter_query_string += 'network_country_name,'
+                filter_query_string += 'network_country_code,'
+                filter_query_string += 'network_country_timezone'
+            else:
+                filter_query_string += i
+
+            if count < len(filter_list):
+                filter_query_string += ','
+            count += 1
+        filter_query_list = filter_query_string.split(',') # 在后面return时要用，为了和fetchall返回的列表的成员个数对上
+        # print("filter list:", filter_list)
+        # print("filter query list", filter_query_list)
+
+        # order_by_list的前序处理
+        order_by_query_string = ''
+        count = 1
+        for i in order_by_list:
+            order_by_query_string += i[1:]
+            order_by_query_string += ' '
+            if i[0] == '+':
+                order_by_query_string += 'ASC'
+            else:
+                order_by_query_string += 'DESC'
+
+            if count < len(order_by_list):
+                order_by_query_string += ', '
+            count += 1
+
+        #测试
+        # print("filter query:", filter_query_string)
+        # print("order by query:", order_by_query_string)
+
+        # 开始正式查询
+        cur.execute(f"SELECT {filter_query_string} FROM tvTable ORDER BY {order_by_query_string}")
+        result = cur.fetchall()
+        # print("result:", result)
+        # 没有任何电视剧记录的情形
+        if result == []:
+            return {'message': 'There are no TV shows in the table at present.'}, 404 #【通过】
+        else:
+            total_item_num = len(result)
+            current_page_num = 0 # 用于在第二层循环中统计程序经过几个page了
+            required_page = ceil(total_item_num/int(page_size))
+
+            tv_shows_dict = dict()
+            tv_shows_list = []
+            final_dict = dict()
+            final_list = []
+            # genres_list = []
+            schedule_dict = dict()
+            rating_dict = dict()
+            network_dict = dict()
+            network_country_dict = dict()
+            for i in range(int(page)):
+                if i < required_page:
+                    if total_item_num <= int(page_size):
+                        real_page_size = total_item_num
+                    else:
+                        if total_item_num - current_page_num * int(page_size) >= int(page_size):
+                            real_page_size = int(page_size)
+                        else:
+                            real_page_size = total_item_num - current_page_num * int(page_size)
+                    # print("real page size:", real_page_size)
+                    for j in range(real_page_size):
+                        for attribute, ele in zip(filter_query_list, result[j + i * int(page_size)]):
+                            # print("attribute:", attribute)
+                            # print("ele:", ele)
+                            if attribute == 'genres':
+                                # print("1111111111111111111")
+                                # genres_list.append()
+                                # print("genres_list:", ele.split(','))
+                                tv_shows_dict[attribute] = ele.split(',')
+                            elif attribute == 'schedule_time':
+                                schedule_dict["time"] = ele
+                                # print("schedule dict1:", schedule_dict)
+                            elif attribute == 'schedule_days':
+                                schedule_dict["days"] = ele.split(',')
+                                # print("schedule dict2:", schedule_dict)
+                                tv_shows_dict["schedule"] = schedule_dict
+                            elif attribute == 'rating':
+                                rating_dict["average"] = ele
+                                tv_shows_dict[attribute] = rating_dict
+                            elif attribute == 'network_id':
+                                network_dict["id"] = ele
+                            elif attribute == 'network_name':
+                                network_dict["name"] = ele
+                            elif attribute == 'network_country_name':
+                                network_country_dict["name"] = ele
+                            elif attribute == 'network_country_code':
+                                network_country_dict["code"] = ele
+                            elif attribute == 'network_country_timezone':
+                                network_country_dict["timezone"] = ele
+                                network_dict["country"] = network_country_dict
+                                tv_shows_dict["network"] = network_dict
+                            else:
+                                tv_shows_dict[attribute] = ele
+
+
+                            # print("tv shows dict before:", tv_shows_dict)
+                        tv_shows_dict_tmp = copy.deepcopy(tv_shows_dict)
+                        tv_shows_list.append(tv_shows_dict_tmp)
+                        # print("j:", j)
+                        # print("tv_shows_dict:", tv_shows_dict)
+                        # print("tv_shows_list:", tv_shows_list)
+                    final_dict["page"] = i + 1
+                    final_dict["page-size"] = page_size
+                    final_dict["tv-shows"] = tv_shows_list
+                    tv_shows_list = []
+                    # print("final dict:", final_dict)
+                    final_dict_tmp = copy.deepcopy(final_dict)
+                    final_list.append(final_dict_tmp)
+                    # print("final list:", final_list)
+
+                    current_page_num += 1 # final_list里加了一个字典就表明一个page做完了
+                else:
+                    if "******Page parameter sets too large, the above page has shown all the available TV shows.******" not in final_list:
+                        final_list.append("******Page parameter sets too large, the above page has shown all the available TV shows.******")
+            return final_list, 200
 
 
 
