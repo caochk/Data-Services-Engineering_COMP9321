@@ -3,11 +3,13 @@ import sqlite3
 import requests
 import re
 import datetime
-from flask import Flask, request
+from flask import Flask, request, send_file
 from flask_restx import Resource, Api, fields
 import pandas as pd
 from math import ceil
 import copy
+from collections import Counter
+import matplotlib.pyplot as plt
 
 app = Flask(__name__)
 api = Api(app, default="TV show", title="Dataset for TV shows", description="This dataset allows\
@@ -218,8 +220,8 @@ def tvData_to_dataFrame(tvData_element, id):
     tvData_row.append(tvData_element["summary"])
 
     # last_update(creation time)
-    time = datetime.datetime.now()
-    date_str = time.strftime("%Y-%m-%d %H:%M:%S")
+    date = datetime.datetime.now()
+    date_str = date.strftime("%Y-%m-%d %H:%M:%S")
     tvData_row.append(date_str)
 
     # print("\ndf_tv:", df_tv)
@@ -234,7 +236,7 @@ def tvData_to_dataFrame(tvData_element, id):
 
 @api.route('/tv-shows/import')
 class question1(Resource):
-# question 1
+    # question 1
     @api.response(404, 'Name of this TV show does not exist')
     @api.response(201, 'Created')
     # @api.response(200, 'OK')
@@ -648,11 +650,11 @@ class question5(Resource):
                         href_dict["href"] = f"http://127.0.0.1:5000/tv-shows?page={i+1},page_size={page_size}"
                         href_dict_tmp = copy.deepcopy(href_dict)
                         links_dict["self"] = href_dict_tmp
-                        print(links_dict)
+                        # print(links_dict)
                         href_dict["href"] = f"http://127.0.0.1:5000/tv-shows?page={i+1+1},page_size={page_size}"
                         href_dict_tmp = copy.deepcopy(href_dict)
                         links_dict["next"] = href_dict_tmp
-                        print(links_dict)
+                        # print(links_dict)
                         final_dict["_links"] = links_dict
                     elif i > 0 and i < required_page - 1:
                         href_dict["href"] = f"http://127.0.0.1:5000/tv-shows?page={i+1},page_size={page_size}"
@@ -685,6 +687,127 @@ class question5(Resource):
                     if "******Page parameter sets too large, the above page has shown all the available TV shows.******" not in final_list:
                         final_list.append("******Page parameter sets too large, the above page has shown all the available TV shows.******")
             return final_list, 200
+
+
+@api.response(404, 'No TV show')
+@api.response(200, 'OK')
+@api.response(400, 'Invalid input')
+@api.param('format', 'Eg: json or image')
+@api.param('by', 'Eg: language, status, type or genres')
+@api.route('/tv-shows/statistics')
+class question6(Resource):
+    def get(self):
+        format = request.args.get('format')
+        by = request.args.get('by')
+
+        # 以下代码是怕万一用户上来就直接执行get命令，那么此时未经过Q1的建表就根本没有表格供其查询，所以依然先建表（空不空无所谓）
+        con = sqlite3.connect('z5291736.db')
+        cur = con.cursor()
+        cur.execute(
+            'CREATE TABLE IF NOT EXISTS tvTable (id integer, tvmaze_id integer, name text, links_previous text, links_current text, links_next text, '
+            'type text, language text, '
+            'status text, runtime text, premiered text, officialSite text, weight integer, genres text, schedule_time text, schedule_days text, '
+            'rating text, network_id integer, network_name text, network_country_name text, network_country_code text, network_country_timezone text, '
+            'summary text, last_update text)')
+
+        # 检查所有输入的参数是否valid
+        standard_format = ['json', 'image']
+        standard_by = ['language', 'genres', 'status', 'type']
+        if format not in standard_format:
+            return {'message': 'The format parameter is invalid.'}, 400  #
+
+        if by not in standard_by:
+            return {'message': 'The by parameter is invalid.'}, 400  #
+
+        # 开始查询数据库
+        # 先获取total num of TV shows，若没有东西返回说明表为空
+        cur.execute(f"SELECT id FROM tvTable")
+        id_result = cur.fetchall()
+        if id_result == []:
+            return {'message': 'There are no TV shows in the table at present.'}, 404 #
+        else:
+            total_num = len(id_result) # total_num = total number of TV shows in database
+
+        # 再获取total num of TV shows updated in 24 hours
+        # 先获取24小时前的时间
+        last_date = datetime.datetime.today() - datetime.timedelta(days=1)
+        last_date_str = last_date.strftime('%Y-%m-%d %H:%M:%S')
+        # print(last_date_str)
+
+        cur.execute("SELECT id FROM tvTable WHERE last_update>=?", (last_date_str,))
+        id_result = cur.fetchall()
+        if id_result == []:
+            return {'message': 'No TV shows have been updated in the past 24 hours.'}, 404 #
+        else:
+            total_num_in_24 = len(id_result)
+
+        # 获取各类by参数
+        # print(by)
+        if by == 'language' or by == 'status' or by == 'type':
+            cur.execute(f"SELECT {by} FROM tvTable")
+            result = cur.fetchall()
+            result_list = []
+            for i in result:
+                result_list.append(i[0])
+            # print(result_list)
+            count = dict(Counter(result_list))
+            # print(count)
+        else:
+            cur.execute(f"SELECT {by} FROM tvTable")
+            result = cur.fetchall()
+            result_list = []
+            for i in result:
+                result_list.append(i[0])
+            result_list_without_none = []
+            for i in result_list:
+                if i != 'None':
+                    result_list_without_none.append(i)
+            count_tmp = dict(Counter(result_list_without_none))
+            total_genres = len(result_list)
+            count = dict()
+            for i in count_tmp:
+                count[i] = count_tmp[i]/total_genres
+
+        # json还是画图
+        if format == 'json':
+            return {
+                "total": total_num,
+                "total-updated": total_num_in_24,
+                "values": count
+            }, 200
+        else:
+            # 画第一个子图
+            total_num_list_value = []
+            total_num_list_key = []
+            total_num_list_key.append("Total Num of TV shows")
+            total_num_list_value.append(total_num)
+
+            total_num_list_key.append("Total Num of TV shows (last 24 hours)")
+            total_num_list_value.append(total_num_in_24)
+
+            plt.figure(figsize=(8, 8), dpi=100)
+
+            plt.subplot(2, 1, 1)
+            plt.bar(total_num_list_key, total_num_list_value, align='center', width=0.1, alpha=0.8, color=('r', 'b'))
+            # plt.legend()
+            plt.ylabel("amount")
+            # plt.xlabel("种类")
+            # plt.title("条形图")
+
+            # 画第二个子图（饼图）
+            plt.subplot(2, 1, 2)
+            label = list(count.keys())
+            data = list(count.values())
+            plt.pie(data, labels=label, radius=0.5, autopct='%3.2f%%')
+            plt.axis('equal')  # 正圆
+            plt.title(f"percentage of TV shows per {by}", loc='left', fontsize=16, fontweight='semibold')
+            plt.legend(loc='upper right', bbox_to_anchor=(1.1, 1.05), fontsize=11, borderaxespad=0.3)
+
+            plt.savefig("question6.png")
+            # plt.show()
+            return send_file("question6.png")
+
+
 
 
 
