@@ -587,6 +587,9 @@ class question5(Resource):
             rating_dict = dict()
             network_dict = dict()
             network_country_dict = dict()
+
+            href_dict = dict()
+            links_dict = dict()
             for i in range(int(page)):
                 if i < required_page:
                     if total_item_num <= int(page_size):
@@ -641,11 +644,41 @@ class question5(Resource):
                     final_dict["page"] = i + 1
                     final_dict["page-size"] = page_size
                     final_dict["tv-shows"] = tv_shows_list
-                    tv_shows_list = []
+                    if i == 0:
+                        href_dict["href"] = f"http://127.0.0.1:5000/tv-shows?page={i+1},page_size={page_size}"
+                        href_dict_tmp = copy.deepcopy(href_dict)
+                        links_dict["self"] = href_dict_tmp
+                        print(links_dict)
+                        href_dict["href"] = f"http://127.0.0.1:5000/tv-shows?page={i+1+1},page_size={page_size}"
+                        href_dict_tmp = copy.deepcopy(href_dict)
+                        links_dict["next"] = href_dict_tmp
+                        print(links_dict)
+                        final_dict["_links"] = links_dict
+                    elif i > 0 and i < required_page - 1:
+                        href_dict["href"] = f"http://127.0.0.1:5000/tv-shows?page={i+1},page_size={page_size}"
+                        href_dict_tmp = copy.deepcopy(href_dict)
+                        links_dict["self"] = href_dict_tmp
+                        href_dict["href"] = f"http://127.0.0.1:5000/tv-shows?page={i},page_size={page_size}"
+                        href_dict_tmp = copy.deepcopy(href_dict)
+                        links_dict["previous"] = href_dict_tmp
+                        href_dict["href"] = f"http://127.0.0.1:5000/tv-shows?page={i+1+1},page_size={page_size}"
+                        href_dict_tmp = copy.deepcopy(href_dict)
+                        links_dict["next"] = href_dict_tmp
+                        final_dict["_links"] = links_dict
+                    else:
+                        href_dict["href"] = f"http://127.0.0.1:5000/tv-shows?page={i+1},page_size={page_size}"
+                        href_dict_tmp = copy.deepcopy(href_dict)
+                        links_dict["self"] = href_dict_tmp
+                        href_dict["href"] = f"http://127.0.0.1:5000/tv-shows?page={i},page_size={page_size}"
+                        href_dict_tmp = copy.deepcopy(href_dict)
+                        links_dict["previous"] = href_dict_tmp
+                        final_dict["_links"] = links_dict
                     # print("final dict:", final_dict)
                     final_dict_tmp = copy.deepcopy(final_dict)
                     final_list.append(final_dict_tmp)
                     # print("final list:", final_list)
+                    tv_shows_list = []
+                    links_dict = dict()
 
                     current_page_num += 1 # final_list里加了一个字典就表明一个page做完了
                 else:
