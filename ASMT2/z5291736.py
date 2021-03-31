@@ -17,66 +17,44 @@ api = Api(app, default="TV show", title="Dataset for TV shows", description="Thi
                                                          TV shows.")
 
 
-# the model of the TV show【方式2】【失败】【用于Q4】
+# the model of the TV show
 
-# schedule = {}
-# schedule['time'] = fields.String(attribute='time')
-# schedule['days'] = fields.List(fields.String, attribute='days')
-# schedule_payload = api.model('schedule', schedule)
-#
-# rating = {}
-# rating['average'] = fields.String(attribute='average')
-# rating_payload = api.model('rating', rating)
-#
-# country = {}
-# country['name'] = fields.String(attribute='name')
-# country['code'] = fields.String(attribute='code')
-# country['timezone'] = fields.String(attribute='timezone')
-# country_payload = api.model('country', country)
-# network_payload = api.model('network', {
-#     'id': fields.Integer,
-#     'name': fields.String,
-#     'country': fields.Nested(country_payload)
-# })
-#
-# self = {}
-# self['href'] = fields.String(attribute='href')
-# self_payload = api.model('self', self)
-# previous = {}
-# previous['href'] = fields.String(attribute='href')
-# previous_payload = api.model('previous', previous)
-# next = {}
-# next['href'] = fields.String(attribute='href')
-# next_payload = api.model('next', next)
-# links_payload = api.model('links', {
-#     'self': fields.Nested(self),
-#     'previous': fields.Nested(previous),
-#     'next': fields.Nested(next)
-# })
-#
-# tv_payload = api.model('tv', {
-#     'tvmaze_id': fields.Integer,
-#     'id': fields.Integer,
-#     'last-update': fields.String,
-#     'name': fields.String,
-#     'type': fields.String,
-#     'language': fields.String,
-#     'genres': fields.List(fields.String),
-#     'status': fields.String,
-#     'runtime': fields.String,
-#     'premiered': fields.String,
-#     'officialSite': fields.String,
-#     'schedule': fields.Nested(schedule_payload),
-#     'rating': fields.Nested(rating_payload),
-#     'weight': fields.Integer,
-#     'network': fields.Nested(network_payload),
-#     'summary': fields.String,
-#     '_links': fields.Nested(links_payload)
-# })
+schedule_payload = api.model('schedule', {
+    'time': fields.String,
+    'days': fields.List(fields.String)
+})
 
-# the model of the TV show【方式1】【model中若没有字典套字典可以通过】【用于Q4】
+rating_payload = api.model('rating', {
+    'average': fields.String
+})
 
-tv_model = api.model('tv model', {
+country_payload = api.model('country', {
+    'name': fields.String,
+    'code': fields.String,
+    'timezone': fields.String
+})
+network_payload = api.model('network', {
+    'id': fields.Integer,
+    'name': fields.String,
+    'country': fields.Nested(country_payload)
+})
+
+self_payload = api.model('self', {
+    'href': fields.String
+})
+previous_payload = api.model('previous', {
+    'href': fields.String
+})
+next_payload = api.model('next', {
+    'href': fields.String
+})
+links_payload = api.model('links', {
+    'self': fields.Nested(self_payload),
+    'previous': fields.Nested(previous_payload),
+    'next': fields.Nested(next_payload)
+})
+
+tv_payload = api.model('tv', {
     'tvmaze_id': fields.Integer,
     'id': fields.Integer,
     'last-update': fields.String,
@@ -88,36 +66,14 @@ tv_model = api.model('tv model', {
     'runtime': fields.String,
     'premiered': fields.String,
     'officialSite': fields.String,
-    # 'schedule': {
-    #     'time': fields.String,
-    #     'days': fields.List(fields.String)
-    # },
-    # 'rating': {
-    #     'average': fields.String,
-    # },
+    'schedule': fields.Nested(schedule_payload),
+    'rating': fields.Nested(rating_payload),
     'weight': fields.Integer,
-    # 'network': {
-    #     'id': fields.Integer,
-    #     'name': fields.String,
-    #     'country': {
-    #         'name': fields.String,
-    #         'code': fields.String,
-    #         'timezone': fields.String,
-    #     },
-    # },
+    'network': fields.Nested(network_payload),
     'summary': fields.String,
-    # '_links': {
-    #     'self': {
-    #         'href': fields.String,
-    #     },
-    #     'previous': {
-    #         'href': fields.String,
-    #     },
-    #     'next': {
-    #         'href': fields.String,
-    #     },
-    # }
+    '_links': fields.Nested(links_payload)
 })
+
 
 
 def tvData_to_dataFrame(tvData_element, id):
@@ -239,13 +195,14 @@ class question1(Resource):
     # question 1
     @api.response(404, 'Name of this TV show does not exist')
     @api.response(201, 'Created')
-    # @api.response(200, 'OK')
+    @api.response(200, 'Already exist')
     @api.param('name', 'Eg : good girl', methods=['POST'], type=str, required=True)
     def post(self):
         name = request.args.get('name') # the name of a TV show searched by users
         print(f"Name of TV show searched by users: {name}") # Used to display prompt information on the server
         tv = requests.get(f'http://api.tvmaze.com/singlesearch/shows?q={name}')
         tvData = tv.json()
+        # print(tvData)
 
         con = sqlite3.connect('z5291736.db')
         cur = con.cursor()
@@ -268,6 +225,12 @@ class question1(Resource):
             # print("\nENTER\n")
             return {'message': 'This TV show does not exist.'}, 404
         else: # valid
+            # print(tvData['tvmaze_id'])
+            cur.execute("SELECT id FROM tvTable WHERE tvmaze_id=?", (tvData['id'],))
+            existed_id = cur.fetchall()
+            # print(existed_id)
+            if existed_id != []:
+                return {'message': 'This TV show already exists.'}, 200
             df_tv = tvData_to_dataFrame(tvData, id)
             df_tv.to_sql('tvTable', con, if_exists='append', index=False)
 
@@ -403,7 +366,7 @@ class question2_3_4(Resource):
     @api.response(400, 'Invalid id')
     @api.response(404, 'id not found')
     @api.response(200, 'Updated')
-    @api.expect(tv_model)
+    @api.expect(tv_payload)
     # @api.marshal_with(tv_payload)
     def patch(self, id):
         # 以下代码是怕万一用户上来就直接执行get命令，那么此时未经过Q1的建表就根本没有表格供其查询，所以依然先建表（空不空无所谓）
@@ -424,8 +387,8 @@ class question2_3_4(Resource):
         tv = request.json #取得payload并转换为json
         # print(type(tv)) #已确认为字典类型<class 'dict'>
         # print("\ntv.keys:", tv.keys()) #确实会打印出来那些我在sagger中写了的想要修改值的键
-        if 'last-update' in tv:
-            tv['last_update'] = tv.pop('last-update')  # 键名换成和数据库中一致的
+        # if 'last-update' in tv:
+        #     tv['last_update'] = tv.pop('last-update')  # 键名换成和数据库中一致的
 
         # print("\ntv.keys1:", tv.keys())
 
@@ -439,14 +402,94 @@ class question2_3_4(Resource):
         else:
             # update the value
             for key in tv:
+                # print("KEY:", key)
+                # print("VALUE:", tv[key])
+                # print("type:", type(tv[key]))
                 # unexpected key
-                # if key not in tv_model.keys() or key not in tv_model['schedule'].keys() or key not in tv_model['network'].keys()\
-                #         or key not in tv_model['network']['country'].keys() or key not in tv_model['_links']:
-                #     return {"message": "Property {} is invalid".format(key)}, 400
+                # if key not in tv_payload.keys() or key not in tv_payload['schedule'].keys() or key not in tv_payload['network'].keys()\
+                #         or key not in tv_payload['network']['country'].keys() or key not in tv_payload['_links']:
+                #     return {"message": "Property {} is invalid".format(key)}, 400 #其实是有问题的
+                if key == 'genres':
+                    # print("1")
+                    i = 1
+                    genres_new_value = ''
+                    for ele in tv[key]:
+                        genres_new_value += ele
+                        if i < len(tv[key]):
+                            genres_new_value += ','
+                        i += 1
+                    cur.execute("UPDATE tvTable SET genres=? WHERE id=?", (genres_new_value,id))
+                    # con.commit()
+                    # print("1")
+                elif key == 'rating':
+                    # print("2")
+                    rating_new_value = tv[key]['average']
+                    cur.execute("UPDATE tvTable SET rating=? WHERE id=?", (rating_new_value, id))
+                    # con.commit()
+                    # print("2")
+                elif key == 'schedule':
+                    # print("3")
+                    schedule_time_new_value = tv[key]['time']
+                    cur.execute("UPDATE tvTable SET schedule_time=? WHERE id=?", (schedule_time_new_value, id))
 
-                cur.execute(f'UPDATE tvTable set {key} = {tv[key]} WHERE id = {id}')
-                con.commit()
+                    i = 1
+                    schedule_days_new_value = ''
+                    for ele in tv[key]['days']:
+                        schedule_days_new_value += ele
+                        if i < len(tv[key]):
+                            schedule_days_new_value += ','
+                        i += 1
+                    cur.execute("UPDATE tvTable SET schedule_days=? WHERE id=?", (schedule_days_new_value, id))
+                    # con.commit()
+                    # print("3")
+                elif key == 'network':
+                    # print("4")
+                    network_id_new_value = tv[key]['id']
+                    cur.execute("UPDATE tvTable SET network_id=? WHERE id=?", (network_id_new_value, id))
+                    network_name_new_value = tv[key]['name']
+                    cur.execute("UPDATE tvTable SET network_name=? WHERE id=?", (network_name_new_value, id))
+                    network_country_name_new_value = tv[key]['country']['name']
+                    cur.execute("UPDATE tvTable SET network_country_name=? WHERE id=?", (network_country_name_new_value,id))
+                    network_country_code_new_value = tv[key]['country']['code']
+                    cur.execute("UPDATE tvTable SET network_country_code=? WHERE id=?", (network_country_code_new_value,id))
+                    network_country_timezone_new_value = tv[key]['country']['timezone']
+                    cur.execute("UPDATE tvTable SET network_country_timezone=? WHERE id=?", (network_country_timezone_new_value,id))
+                    # con.commit()
+                    # print("4")
+                elif key == '_links':
+                    # print("5")
+                    links_self_new_value = tv[key]['self']['href']
+                    cur.execute("UPDATE tvTable SET links_current=? WHERE id=?", (links_self_new_value, id))
+                    links_previous_new_value = tv[key]['previous']['href']
+                    cur.execute("UPDATE tvTable SET links_previous=? WHERE id=?", (links_previous_new_value, id))
+                    links_next_new_value = tv[key]['next']['href']
+                    cur.execute("UPDATE tvTable SET links_next=? WHERE id=?", (links_next_new_value, id))
+                    # con.commit()
+                    # print("5")
+                elif key == 'last-update':
+                    # print("6")
+                    date = datetime.datetime.now()
+                    last_update_new_value = date.strftime("%Y-%m-%d %H:%M:%S")
+                    cur.execute("UPDATE tvTable SET last_update=? WHERE id=?", (last_update_new_value, id))
+                    # con.commit()
+                    # print("6")
+                elif key == 'id' or key == 'tvmaze_id':
+                    continue
+                else:
+                    # print("7")
+                    cur.execute(f"UPDATE tvTable set {key}='{tv[key]}' WHERE id = {id}")
+                    # con.commit()
+                    # print("7")
+            # print("for OVER")
+            date = datetime.datetime.now()
+            date_str = date.strftime("%Y-%m-%d %H:%M:%S")
+            cur.execute("UPDATE tvTable SET last_update=? WHERE id=?", (date_str, id))
+            con.commit()
 
+            return {
+                "id": id,
+                "last-update": date_str
+            }, 200
 
 @api.response(400, 'Invalid input')
 @api.response(404, 'No TV show')
