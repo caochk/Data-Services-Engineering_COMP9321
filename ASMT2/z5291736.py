@@ -39,25 +39,25 @@ network_payload = api.model('network', {
     'country': fields.Nested(country_payload)
 })
 
-self_payload = api.model('self', {
-    'href': fields.String
-})
-previous_payload = api.model('previous', {
-    'href': fields.String
-})
-next_payload = api.model('next', {
-    'href': fields.String
-})
-links_payload = api.model('links', {
-    'self': fields.Nested(self_payload),
-    'previous': fields.Nested(previous_payload),
-    'next': fields.Nested(next_payload)
-})
+# self_payload = api.model('self', {
+#     'href': fields.String
+# })
+# previous_payload = api.model('previous', {
+#     'href': fields.String
+# })
+# next_payload = api.model('next', {
+#     'href': fields.String
+# })
+# links_payload = api.model('links', {
+#     'self': fields.Nested(self_payload),
+#     'previous': fields.Nested(previous_payload),
+#     'next': fields.Nested(next_payload)
+# })
 
 tv_payload = api.model('tv', {
-    'tvmaze_id': fields.Integer,
-    'id': fields.Integer,
-    'last-update': fields.String,
+    # 'tvmaze_id': fields.Integer,
+    # 'id': fields.Integer,
+    # 'last-update': fields.String,
     'name': fields.String,
     'type': fields.String,
     'language': fields.String,
@@ -71,7 +71,7 @@ tv_payload = api.model('tv', {
     'weight': fields.Integer,
     'network': fields.Nested(network_payload),
     'summary': fields.String,
-    '_links': fields.Nested(links_payload)
+    # '_links': fields.Nested(links_payload)
 })
 
 
@@ -265,7 +265,8 @@ class question2_3_4(Resource):
             'summary text, last_update text)')
 
         # 先判断用户输入的id本身是不是合理的：是否为整数、是否为正数
-        if id < 1 or isinstance(id, int) == False:
+        print(id)
+        if id < 1 or (isinstance(id, int) == False):
             # print("11111\n", type(id))
             return {'message': 'The id of this TV show is invalid.'}, 400
 
@@ -283,9 +284,9 @@ class question2_3_4(Resource):
             id = result[0][0]
             tvmaze_id = result[0][1]
             name = result[0][2]
-            links_previous = result[0][3]
-            links_current = result[0][4]
-            links_next = result[0][5]
+            # links_previous = result[0][3]
+            # links_current = result[0][4]
+            # links_next = result[0][5]
             type = result[0][6]
             language = result[0][7]
             status = result[0][8]
@@ -318,13 +319,34 @@ class question2_3_4(Resource):
             summary = result[0][22]
             last_update = result[0][23]
 
+            # 处理links问题
+            cur.execute("SELECT id FROM tvTable WHERE id=?", (id - 1,))  # 看看previous有没有
+            id_previous = cur.fetchall()
+            cur.execute("SELECT id FROM tvTable WHERE id=?", (id + 1,))  # 看看next有没有
+            id_next = cur.fetchall()
+            href_dict = dict()
+            links_dict = dict()
+            # 先构建self字典，self一定存在
+            href_dict['href'] = f"http://127.0.0.1:5000/tv-shows/{id}"
+            href_dict_tmp = copy.deepcopy(href_dict)
+            links_dict['self'] = href_dict_tmp
+            # 再是previous和next，要看是否存在
+            if id_previous != []:
+                href_dict['href'] = f"http://127.0.0.1:5000/tv-shows/{id - 1}"
+                href_dict_tmp = copy.deepcopy(href_dict)
+                links_dict['previous'] = href_dict_tmp
+            if id_next != []:
+                href_dict['href'] = f"http://127.0.0.1:5000/tv-shows/{id + 1}"
+                href_dict_tmp = copy.deepcopy(href_dict)
+                links_dict['next'] = href_dict_tmp
+
             return {
                 "tvmaze_id": tvmaze_id, "id": id, "last-update": last_update, "name": name, "type": type, "language": language,
                 "genres": genres_list, "status": status, "runtime": runtime, "premiered": premiered, "officialSite": officialSite,
                 "schedule": {"time": schedule_time, "days": schedule_days_list}, "rating": {"average": rating}, "weight": weight,
                 "network": {"id": network_id, "name": network_name, "country": {"name": network_country_name, "code": network_country_code,
                                                                                "timezone": network_country_timezone}},
-                "summary": summary, "_links": {"self": {"href": links_current}, "previous": {"href": links_previous}, "next": {"href": links_next}}
+                "summary": summary, "_links": links_dict
             }, 200
 
     # question3
@@ -363,7 +385,7 @@ class question2_3_4(Resource):
             }, 200
 
     # question4
-    @api.response(400, 'Invalid id')
+    @api.response(400, 'Invalid id or invalid attributes')
     @api.response(404, 'id not found')
     @api.response(200, 'Updated')
     @api.expect(tv_payload)
@@ -406,9 +428,8 @@ class question2_3_4(Resource):
                 # print("VALUE:", tv[key])
                 # print("type:", type(tv[key]))
                 # unexpected key
-                # if key not in tv_payload.keys() or key not in tv_payload['schedule'].keys() or key not in tv_payload['network'].keys()\
-                #         or key not in tv_payload['network']['country'].keys() or key not in tv_payload['_links']:
-                #     return {"message": "Property {} is invalid".format(key)}, 400 #其实是有问题的
+                if key not in tv_payload.keys():
+                    return {"message": "Attribute {} is invalid".format(key)}, 400 #其实是有问题的
                 if key == 'genres':
                     # print("1")
                     i = 1
@@ -422,12 +443,18 @@ class question2_3_4(Resource):
                     # con.commit()
                     # print("1")
                 elif key == 'rating':
+                    # if tv[key].keys() != 'average':
+                    #     return {"message": "Some attributes maybe invalid within attribute rating"}, 400
                     # print("2")
                     rating_new_value = tv[key]['average']
                     cur.execute("UPDATE tvTable SET rating=? WHERE id=?", (rating_new_value, id))
                     # con.commit()
                     # print("2")
                 elif key == 'schedule':
+                    # print(tv[key].keys())
+                    # if tv[key].keys() not in ['time', 'days']:
+                    #     print("111")
+                    #     return {"message": "Some attributes maybe invalid within attribute schedule"}, 400
                     # print("3")
                     schedule_time_new_value = tv[key]['time']
                     cur.execute("UPDATE tvTable SET schedule_time=? WHERE id=?", (schedule_time_new_value, id))
@@ -443,6 +470,9 @@ class question2_3_4(Resource):
                     # con.commit()
                     # print("3")
                 elif key == 'network':
+                    # if tv[key].keys() not in ['id', 'name', 'country']:
+                    #     print("222")
+                    #     return {"message": "Some attributes maybe invalid within attribute network"}, 400
                     # print("4")
                     network_id_new_value = tv[key]['id']
                     cur.execute("UPDATE tvTable SET network_id=? WHERE id=?", (network_id_new_value, id))
@@ -456,25 +486,25 @@ class question2_3_4(Resource):
                     cur.execute("UPDATE tvTable SET network_country_timezone=? WHERE id=?", (network_country_timezone_new_value,id))
                     # con.commit()
                     # print("4")
-                elif key == '_links':
-                    # print("5")
-                    links_self_new_value = tv[key]['self']['href']
-                    cur.execute("UPDATE tvTable SET links_current=? WHERE id=?", (links_self_new_value, id))
-                    links_previous_new_value = tv[key]['previous']['href']
-                    cur.execute("UPDATE tvTable SET links_previous=? WHERE id=?", (links_previous_new_value, id))
-                    links_next_new_value = tv[key]['next']['href']
-                    cur.execute("UPDATE tvTable SET links_next=? WHERE id=?", (links_next_new_value, id))
-                    # con.commit()
-                    # print("5")
-                elif key == 'last-update':
-                    # print("6")
-                    date = datetime.datetime.now()
-                    last_update_new_value = date.strftime("%Y-%m-%d %H:%M:%S")
-                    cur.execute("UPDATE tvTable SET last_update=? WHERE id=?", (last_update_new_value, id))
-                    # con.commit()
-                    # print("6")
-                elif key == 'id' or key == 'tvmaze_id':
-                    continue
+                # elif key == '_links':
+                #     # print("5")
+                #     links_self_new_value = tv[key]['self']['href']
+                #     cur.execute("UPDATE tvTable SET links_current=? WHERE id=?", (links_self_new_value, id))
+                #     links_previous_new_value = tv[key]['previous']['href']
+                #     cur.execute("UPDATE tvTable SET links_previous=? WHERE id=?", (links_previous_new_value, id))
+                #     links_next_new_value = tv[key]['next']['href']
+                #     cur.execute("UPDATE tvTable SET links_next=? WHERE id=?", (links_next_new_value, id))
+                #     # con.commit()
+                #     # print("5")
+                # elif key == 'last-update':
+                #     # print("6")
+                #     date = datetime.datetime.now()
+                #     last_update_new_value = date.strftime("%Y-%m-%d %H:%M:%S")
+                #     cur.execute("UPDATE tvTable SET last_update=? WHERE id=?", (last_update_new_value, id))
+                #     # con.commit()
+                #     # print("6")
+                # elif key == 'id' or key == 'tvmaze_id':
+                #     continue
                 else:
                     # print("7")
                     cur.execute(f"UPDATE tvTable set {key}='{tv[key]}' WHERE id = {id}")
@@ -486,9 +516,31 @@ class question2_3_4(Resource):
             cur.execute("UPDATE tvTable SET last_update=? WHERE id=?", (date_str, id))
             con.commit()
 
+            #处理links问题
+            cur.execute("SELECT id FROM tvTable WHERE id=?", (id-1,)) #看看previous有没有
+            id_previous = cur.fetchall()
+            cur.execute("SELECT id FROM tvTable WHERE id=?", (id+1,))  # 看看next有没有
+            id_next = cur.fetchall()
+            href_dict = dict()
+            links_dict = dict()
+            #先构建self字典，self一定存在
+            href_dict['href'] = f"http://127.0.0.1:5000/tv-shows/{id}"
+            href_dict_tmp = copy.deepcopy(href_dict)
+            links_dict['self'] = href_dict_tmp
+            #再是previous和next，要看是否存在
+            if id_previous != []:
+                href_dict['href'] = f"http://127.0.0.1:5000/tv-shows/{id-1}"
+                href_dict_tmp = copy.deepcopy(href_dict)
+                links_dict['previous'] = href_dict_tmp
+            if id_next != []:
+                href_dict['href'] = f"http://127.0.0.1:5000/tv-shows/{id+1}"
+                href_dict_tmp = copy.deepcopy(href_dict)
+                links_dict['next'] = href_dict_tmp
+
             return {
                 "id": id,
-                "last-update": date_str
+                "last-update": date_str,
+                "_links": links_dict
             }, 200
 
 @api.response(400, 'Invalid input')
@@ -835,7 +887,7 @@ class question6(Resource):
             # plt.legend()
             plt.ylabel("amount")
             # plt.xlabel("种类")
-            # plt.title("条形图")
+            plt.title("Total num and total num in last 24 hours", loc='left', fontsize=12, fontweight='semibold')
 
             # 画第二个子图（饼图）
             plt.subplot(2, 1, 2)
@@ -843,17 +895,12 @@ class question6(Resource):
             data = list(count.values())
             plt.pie(data, labels=label, radius=0.5, autopct='%3.2f%%')
             plt.axis('equal')  # 正圆
-            plt.title(f"percentage of TV shows per {by}", loc='left', fontsize=16, fontweight='semibold')
-            plt.legend(loc='upper right', bbox_to_anchor=(1.1, 1.05), fontsize=11, borderaxespad=0.3)
+            plt.title(f"Percentage of TV shows per {by}", loc='left', fontsize=15, fontweight='semibold')
+            plt.legend(loc='upper right', bbox_to_anchor=(1.1, 1.05), fontsize=10, borderaxespad=0.3)
 
             plt.savefig("question6.png")
             # plt.show()
             return send_file("question6.png")
-
-
-
-
-
 
 
 
