@@ -1,7 +1,5 @@
-import json
 import sqlite3
 import requests
-import re
 import datetime
 from flask import Flask, request, send_file
 from flask_restx import Resource, Api, fields
@@ -39,25 +37,7 @@ network_payload = api.model('network', {
     'country': fields.Nested(country_payload)
 })
 
-# self_payload = api.model('self', {
-#     'href': fields.String
-# })
-# previous_payload = api.model('previous', {
-#     'href': fields.String
-# })
-# next_payload = api.model('next', {
-#     'href': fields.String
-# })
-# links_payload = api.model('links', {
-#     'self': fields.Nested(self_payload),
-#     'previous': fields.Nested(previous_payload),
-#     'next': fields.Nested(next_payload)
-# })
-
 tv_payload = api.model('tv', {
-    # 'tvmaze_id': fields.Integer,
-    # 'id': fields.Integer,
-    # 'last-update': fields.String,
     'name': fields.String,
     'type': fields.String,
     'language': fields.String,
@@ -71,7 +51,6 @@ tv_payload = api.model('tv', {
     'weight': fields.Integer,
     'network': fields.Nested(network_payload),
     'summary': fields.String,
-    # '_links': fields.Nested(links_payload)
 })
 
 
@@ -82,25 +61,19 @@ def tvData_to_dataFrame(tvData_element, id):
                "network_name", "network_country_name", "network_country_code", "network_country_timezone", "summary", "last_update"]
     df_tv = pd.DataFrame(columns=columns)
     tvData_row = []
-    # rowIndex = 0
-    # for tvData_element in tvData:
     tvData_row.append(id)
     tvData_row.append(tvData_element["id"])
     tvData_row.append(tvData_element["name"])
 
     tvData_ele_link = tvData_element["_links"]
     if 'previousepisode' in tvData_ele_link:
-        # print("preEXIST!\n")
         tvData_row.append(tvData_element["_links"]["previousepisode"]["href"])
     else:
-        # print("preNO!\n")
         tvData_row.append("None")
     tvData_row.append(tvData_element["_links"]["self"]["href"])
     if 'nextepisode' in tvData_ele_link:
-        # print("nextEXIST!\n")
         tvData_row.append(tvData_element["_links"]["nextepisode"]["href"])
     else:
-        # print("nextNO!\n")
         tvData_row.append("None")
 
     tvData_row.append(tvData_element["type"])
@@ -158,7 +131,6 @@ def tvData_to_dataFrame(tvData_element, id):
     else:
         tvData_row.append("None")
 
-    #因为network键下面可能就没东西了，所以得先判断
     tvData_ele_network = tvData_element["network"]
     if tvData_ele_network != None:
         tvData_row.append(tvData_element["network"]["id"])
@@ -175,18 +147,11 @@ def tvData_to_dataFrame(tvData_element, id):
 
     tvData_row.append(tvData_element["summary"])
 
-    # last_update(creation time)
     date = datetime.datetime.now()
     date_str = date.strftime("%Y-%m-%d %H:%M:%S")
     tvData_row.append(date_str)
 
-    # print("\ndf_tv:", df_tv)
-    # print("\ntvROW:", tvData_row)
-
     df_tv.loc[0] = tvData_row
-    # tvData_row = []
-    # rowIndex += 1
-
     return df_tv
 
 
@@ -202,7 +167,6 @@ class question1(Resource):
         print(f"Name of TV show searched by users: {name}") # Used to display prompt information on the server
         tv = requests.get(f'http://api.tvmaze.com/singlesearch/shows?q={name}')
         tvData = tv.json()
-        # print(tvData)
 
         con = sqlite3.connect('z5291736.db')
         cur = con.cursor()
@@ -211,24 +175,21 @@ class question1(Resource):
                     'status text, runtime text, premiered text, officialSite text, weight integer, genres text, schedule_time text, schedule_days text, '
                     'rating text, network_id integer, network_name text, network_country_name text, network_country_code text, network_country_timezone text, '
                     'summary text, last_update text)')
-        # solve id issue [RIGHT!]
+        # solve id issue
         cur.execute('SELECT max(id) FROM tvTable')
-        max_id = cur.fetchall() # fetchall返回的是一个二维列表
-        if max_id[0][0] == None: #说明tvTable里面没有任何元组
+        max_id = cur.fetchall()
+        if max_id[0][0] == None: # It means that there are no tuples in tvtable
             id = 1
         else:
-            id = int(max_id[0][0]) + 1 # 必须配合好上一个id
+            id = int(max_id[0][0]) + 1
 
-        # print("tvData:", tvData)
         # check if invalid name
         if tvData == None: # invalid
             # print("\nENTER\n")
             return {'message': 'This TV show does not exist.'}, 404
         else: # valid
-            # print(tvData['tvmaze_id'])
             cur.execute("SELECT id FROM tvTable WHERE tvmaze_id=?", (tvData['id'],))
             existed_id = cur.fetchall()
-            # print(existed_id)
             if existed_id != []:
                 return {'message': 'This TV show already exists.'}, 200
             df_tv = tvData_to_dataFrame(tvData, id)
@@ -254,7 +215,7 @@ class question2_3_4(Resource):
     @api.response(404, 'id not found')
     @api.response(200, 'Retrieved')
     def get(self, id):
-        # 以下代码是怕万一用户上来就直接执行get命令，那么此时未经过Q1的建表就根本没有表格供其查询，所以依然先建表（空不空无所谓）
+        # If the user executes the get command directly, there will be no table to query without creating a table
         con = sqlite3.connect('z5291736.db')
         cur = con.cursor()
         cur.execute(
@@ -264,13 +225,13 @@ class question2_3_4(Resource):
             'rating text, network_id integer, network_name text, network_country_name text, network_country_code text, network_country_timezone text, '
             'summary text, last_update text)')
 
-        # 先判断用户输入的id本身是不是合理的：是否为整数、是否为正数
+        # Judge whether the ID entered by the user is valid
         print(id)
         if id < 1 or (isinstance(id, int) == False):
             # print("11111\n", type(id))
             return {'message': 'The id of this TV show is invalid.'}, 400
 
-        # 再判断记录不存在的情况
+        # judge if tuple queried exists
         cur.execute(f"SELECT id FROM tvTable WHERE id = {id}")
         id_result = cur.fetchall()
         if id_result == []:
@@ -280,13 +241,9 @@ class question2_3_4(Resource):
                         f"officialSite, weight, genres, schedule_time, schedule_days, rating, network_id, "
                         f"network_name, network_country_name, network_country_code, network_country_timezone, summary, last_update FROM tvTable WHERE id={id}")
             result = cur.fetchall()
-            # print("result:", result)
             id = result[0][0]
             tvmaze_id = result[0][1]
             name = result[0][2]
-            # links_previous = result[0][3]
-            # links_current = result[0][4]
-            # links_next = result[0][5]
             type = result[0][6]
             language = result[0][7]
             status = result[0][8]
@@ -296,18 +253,18 @@ class question2_3_4(Resource):
             weight = result[0][12]
 
             genres = result[0][13]
-            genres_list = [] #genres = 'None'的情形
-            if genres != "None" and "," not in genres: #genres = 'Anime'的情形
+            genres_list = [] #the case that genres = 'None'
+            if genres != "None" and "," not in genres:
                 genres_list.append(genres)
-            if genres != "None" and "," in genres: #genres = 'Anime, Sci-fiction'的情形
+            if genres != "None" and "," in genres:
                 genres_list = genres.split(",")
 
             schedule_time = result[0][14]
             schedule_days = result[0][15]
-            schedule_days_list = []  # schedule_days = 'None'的情形
-            if schedule_days != "None" and "," not in schedule_days:  # schedule_days = 'Saturday'的情形
+            schedule_days_list = []  # the case that schedule_days = 'None'
+            if schedule_days != "None" and "," not in schedule_days:  # the case that schedule_days = 'Saturday'
                 schedule_days_list.append(schedule_days)
-            if schedule_days != "None" and "," in schedule_days:  # schedule_days = 'Friday, Sunday'的情形
+            if schedule_days != "None" and "," in schedule_days:  # the case that schedule_days = 'Friday, Sunday'
                 schedule_days_list = schedule_days.split(",")
 
             rating = result[0][16]
@@ -319,18 +276,15 @@ class question2_3_4(Resource):
             summary = result[0][22]
             last_update = result[0][23]
 
-            # 处理links问题
-            cur.execute("SELECT id FROM tvTable WHERE id=?", (id - 1,))  # 看看previous有没有
+            cur.execute("SELECT id FROM tvTable WHERE id=?", (id - 1,))
             id_previous = cur.fetchall()
-            cur.execute("SELECT id FROM tvTable WHERE id=?", (id + 1,))  # 看看next有没有
+            cur.execute("SELECT id FROM tvTable WHERE id=?", (id + 1,))
             id_next = cur.fetchall()
             href_dict = dict()
             links_dict = dict()
-            # 先构建self字典，self一定存在
             href_dict['href'] = f"http://127.0.0.1:5000/tv-shows/{id}"
             href_dict_tmp = copy.deepcopy(href_dict)
             links_dict['self'] = href_dict_tmp
-            # 再是previous和next，要看是否存在
             if id_previous != []:
                 href_dict['href'] = f"http://127.0.0.1:5000/tv-shows/{id - 1}"
                 href_dict_tmp = copy.deepcopy(href_dict)
@@ -354,7 +308,7 @@ class question2_3_4(Resource):
     @api.response(404, 'id not found')
     @api.response(200, 'Deleted')
     def delete(self, id):
-        # 以下代码是怕万一用户上来就直接执行get命令，那么此时未经过Q1的建表就根本没有表格供其查询，所以依然先建表（空不空无所谓）
+        # If the user executes the get command directly, there will be no table to query without creating a table
         con = sqlite3.connect('z5291736.db')
         cur = con.cursor()
         cur.execute(
@@ -364,12 +318,12 @@ class question2_3_4(Resource):
             'rating text, network_id integer, network_name text, network_country_name text, network_country_code text, network_country_timezone text, '
             'summary text, last_update text)')
 
-        # 先判断用户输入的id本身是不是合理的：是否为整数、是否为正数
+        # Judge whether the ID entered by the user is valid
         if id < 1 or isinstance(id, int) == False:
             # print("11111\n", type(id))
             return {'message': 'The id of this TV show is invalid.'}, 400
 
-        # 再判断记录不存在的情况
+        # judge if tuple queried exists
         cur.execute(f"SELECT id FROM tvTable WHERE id = {id}")
         id_result = cur.fetchall()
         if id_result == []:
@@ -377,21 +331,19 @@ class question2_3_4(Resource):
         else:
             cur.execute(f'DELETE FROM tvTable WHERE id = {id}')
             con.commit()
-            # print("111:", cur.fetchall()) #如果返回的为[]说明被删了
 
             return {
                 "message": f"The tv show with id {id} was removed from the database!",
                 "id": id
             }, 200
 
-    # question4
+    # Question4
     @api.response(400, 'Invalid id or invalid attributes')
     @api.response(404, 'id not found')
     @api.response(200, 'Updated')
     @api.expect(tv_payload)
-    # @api.marshal_with(tv_payload)
     def patch(self, id):
-        # 以下代码是怕万一用户上来就直接执行get命令，那么此时未经过Q1的建表就根本没有表格供其查询，所以依然先建表（空不空无所谓）
+        # If the user executes the get command directly, there will be no table to query without creating a table
         con = sqlite3.connect('z5291736.db')
         cur = con.cursor()
         cur.execute(
@@ -401,22 +353,14 @@ class question2_3_4(Resource):
             'rating text, network_id integer, network_name text, network_country_name text, network_country_code text, network_country_timezone text, '
             'summary text, last_update text)')
 
-        # 先判断用户输入的id本身是不是合理的：是否为整数、是否为正数
+        # Judge whether the ID entered by the user is valid
         if id < 1 or isinstance(id, int) == False:
             # print("11111\n", type(id))
             return {'message': 'The id of this TV show is invalid.'}, 400
 
         tv = request.json #取得payload并转换为json
-        # print(type(tv)) #已确认为字典类型<class 'dict'>
-        # print("\ntv.keys:", tv.keys()) #确实会打印出来那些我在sagger中写了的想要修改值的键
-        # if 'last-update' in tv:
-        #     tv['last_update'] = tv.pop('last-update')  # 键名换成和数据库中一致的
 
-        # print("\ntv.keys1:", tv.keys())
-
-
-
-        # 再判断记录不存在的情况
+        # judge if tuple queried exists
         cur.execute(f"SELECT id FROM tvTable WHERE id = {id}")
         id_result = cur.fetchall()
         if id_result == []:
@@ -424,14 +368,10 @@ class question2_3_4(Resource):
         else:
             # update the value
             for key in tv:
-                # print("KEY:", key)
-                # print("VALUE:", tv[key])
-                # print("type:", type(tv[key]))
                 # unexpected key
                 if key not in tv_payload.keys():
-                    return {"message": "Attribute {} is invalid".format(key)}, 400 #其实是有问题的
+                    return {"message": "Attribute {} is invalid".format(key)}, 400
                 if key == 'genres':
-                    # print("1")
                     i = 1
                     genres_new_value = ''
                     for ele in tv[key]:
@@ -440,25 +380,12 @@ class question2_3_4(Resource):
                             genres_new_value += ','
                         i += 1
                     cur.execute("UPDATE tvTable SET genres=? WHERE id=?", (genres_new_value,id))
-                    # con.commit()
-                    # print("1")
                 elif key == 'rating':
-                    # if tv[key].keys() != 'average':
-                    #     return {"message": "Some attributes maybe invalid within attribute rating"}, 400
-                    # print("2")
                     rating_new_value = tv[key]['average']
                     cur.execute("UPDATE tvTable SET rating=? WHERE id=?", (rating_new_value, id))
-                    # con.commit()
-                    # print("2")
                 elif key == 'schedule':
-                    # print(tv[key].keys())
-                    # if tv[key].keys() not in ['time', 'days']:
-                    #     print("111")
-                    #     return {"message": "Some attributes maybe invalid within attribute schedule"}, 400
-                    # print("3")
                     schedule_time_new_value = tv[key]['time']
                     cur.execute("UPDATE tvTable SET schedule_time=? WHERE id=?", (schedule_time_new_value, id))
-
                     i = 1
                     schedule_days_new_value = ''
                     for ele in tv[key]['days']:
@@ -467,13 +394,7 @@ class question2_3_4(Resource):
                             schedule_days_new_value += ','
                         i += 1
                     cur.execute("UPDATE tvTable SET schedule_days=? WHERE id=?", (schedule_days_new_value, id))
-                    # con.commit()
-                    # print("3")
                 elif key == 'network':
-                    # if tv[key].keys() not in ['id', 'name', 'country']:
-                    #     print("222")
-                    #     return {"message": "Some attributes maybe invalid within attribute network"}, 400
-                    # print("4")
                     network_id_new_value = tv[key]['id']
                     cur.execute("UPDATE tvTable SET network_id=? WHERE id=?", (network_id_new_value, id))
                     network_name_new_value = tv[key]['name']
@@ -484,50 +405,22 @@ class question2_3_4(Resource):
                     cur.execute("UPDATE tvTable SET network_country_code=? WHERE id=?", (network_country_code_new_value,id))
                     network_country_timezone_new_value = tv[key]['country']['timezone']
                     cur.execute("UPDATE tvTable SET network_country_timezone=? WHERE id=?", (network_country_timezone_new_value,id))
-                    # con.commit()
-                    # print("4")
-                # elif key == '_links':
-                #     # print("5")
-                #     links_self_new_value = tv[key]['self']['href']
-                #     cur.execute("UPDATE tvTable SET links_current=? WHERE id=?", (links_self_new_value, id))
-                #     links_previous_new_value = tv[key]['previous']['href']
-                #     cur.execute("UPDATE tvTable SET links_previous=? WHERE id=?", (links_previous_new_value, id))
-                #     links_next_new_value = tv[key]['next']['href']
-                #     cur.execute("UPDATE tvTable SET links_next=? WHERE id=?", (links_next_new_value, id))
-                #     # con.commit()
-                #     # print("5")
-                # elif key == 'last-update':
-                #     # print("6")
-                #     date = datetime.datetime.now()
-                #     last_update_new_value = date.strftime("%Y-%m-%d %H:%M:%S")
-                #     cur.execute("UPDATE tvTable SET last_update=? WHERE id=?", (last_update_new_value, id))
-                #     # con.commit()
-                #     # print("6")
-                # elif key == 'id' or key == 'tvmaze_id':
-                #     continue
                 else:
-                    # print("7")
                     cur.execute(f"UPDATE tvTable set {key}='{tv[key]}' WHERE id = {id}")
-                    # con.commit()
-                    # print("7")
-            # print("for OVER")
             date = datetime.datetime.now()
             date_str = date.strftime("%Y-%m-%d %H:%M:%S")
             cur.execute("UPDATE tvTable SET last_update=? WHERE id=?", (date_str, id))
             con.commit()
 
-            #处理links问题
-            cur.execute("SELECT id FROM tvTable WHERE id=?", (id-1,)) #看看previous有没有
+            cur.execute("SELECT id FROM tvTable WHERE id=?", (id-1,))
             id_previous = cur.fetchall()
-            cur.execute("SELECT id FROM tvTable WHERE id=?", (id+1,))  # 看看next有没有
+            cur.execute("SELECT id FROM tvTable WHERE id=?", (id+1,))
             id_next = cur.fetchall()
             href_dict = dict()
             links_dict = dict()
-            #先构建self字典，self一定存在
             href_dict['href'] = f"http://127.0.0.1:5000/tv-shows/{id}"
             href_dict_tmp = copy.deepcopy(href_dict)
             links_dict['self'] = href_dict_tmp
-            #再是previous和next，要看是否存在
             if id_previous != []:
                 href_dict['href'] = f"http://127.0.0.1:5000/tv-shows/{id-1}"
                 href_dict_tmp = copy.deepcopy(href_dict)
@@ -553,13 +446,13 @@ class question2_3_4(Resource):
 @api.route('/tv-shows')
 class question5(Resource):
     def get(self):
-        # 获取用户输入的参数，包括order_by,page, page, page_size, filter
+        # Get the parameters entered by the user, including order_ by,page, page, page_ size, filter
         order_by = request.args.get('order_by')
         page = request.args.get('page')
         page_size = request.args.get('page_size')
         filter = request.args.get('filter')
 
-        # 以下代码是怕万一用户上来就直接执行get命令，那么此时未经过Q1的建表就根本没有表格供其查询，所以依然先建表（空不空无所谓）
+        # If the user executes the get command directly, there will be no table to query without creating a table
         con = sqlite3.connect('z5291736.db')
         cur = con.cursor()
         cur.execute(
@@ -569,7 +462,7 @@ class question5(Resource):
             'rating text, network_id integer, network_name text, network_country_name text, network_country_code text, network_country_timezone text, '
             'summary text, last_update text)')
 
-        # 用户未输入某参数时，则采用默认值
+        # When the user does not enter a parameter, the default value is used
         if order_by == None:
             order_by = '+id'
         if page == None:
@@ -579,8 +472,7 @@ class question5(Resource):
         if filter == None:
             filter = 'id,name'
 
-        # 对order_by进行处理，因为是由逗号分隔的字符串且包含了+、-号；filter也一样列表化
-        # 先去除order_by和filter字符串内的空格，方便后续使用split
+        # Process the order_by parameter
         order_by_no_space = ''
         for i in order_by:
             if i != ' ':
@@ -595,15 +487,12 @@ class question5(Resource):
             else:
                 continue
 
-        # 若由逗号隔开多个值则用split，不然直接放入列表
         order_by_list = order_by_no_space.split(',')
         filter_list = filter_no_space.split(',')
 
-        # 检查所有输入的参数是否valid
-        # 先检查page,page_size参数是否只由数字构成
+        # Check whether all input parameters are valid
         if page.isdigit() == False or page_size.isdigit() == False:
-            return {'message': 'The page and page_size parameters can only be numeric.'}, 400 # 【通过】
-        # 再检查order_by和filter参数是否包含了允许字符之外的字符
+            return {'message': 'The page and page_size parameters can only be numeric.'}, 400
         standard_order_dy = ['+id', '-id', '+name', '-name', '+runtime', '-runtime', '+premiered', '-premiered',
                              '+rating-average', '-rating-average']
         standard_filter = ['tvmaze_id', 'id', 'last-update', 'name', 'type', 'language',
@@ -611,15 +500,12 @@ class question5(Resource):
                            'weight', 'network', 'summary']
         for i in order_by_list:
             if i not in standard_order_dy:
-                return {'message': 'The order_by parameter is invalid.'}, 400 # 【通过】
+                return {'message': 'The order_by parameter is invalid.'}, 400
 
         for i in filter_list:
             if i not in standard_filter:
-                return {'message': 'The filter parameter is invalid.'}, 400 # 【通过】
+                return {'message': 'The filter parameter is invalid.'}, 400
 
-        # 开始从sqlite中进行查询
-        # 构建查询语句前的处理工作
-        # filter_list的前序处理：扩列
         filter_query_string = ''
         count = 1
         for i in filter_list:
@@ -640,11 +526,8 @@ class question5(Resource):
             if count < len(filter_list):
                 filter_query_string += ','
             count += 1
-        filter_query_list = filter_query_string.split(',') # 在后面return时要用，为了和fetchall返回的列表的成员个数对上
-        # print("filter list:", filter_list)
-        # print("filter query list", filter_query_list)
+        filter_query_list = filter_query_string.split(',')
 
-        # order_by_list的前序处理
         order_by_query_string = ''
         count = 1
         for i in order_by_list:
@@ -659,27 +542,20 @@ class question5(Resource):
                 order_by_query_string += ', '
             count += 1
 
-        #测试
-        # print("filter query:", filter_query_string)
-        # print("order by query:", order_by_query_string)
-
-        # 开始正式查询
+        # Start query
         cur.execute(f"SELECT {filter_query_string} FROM tvTable ORDER BY {order_by_query_string}")
         result = cur.fetchall()
-        # print("result:", result)
-        # 没有任何电视剧记录的情形
         if result == []:
-            return {'message': 'There are no TV shows in the table at present.'}, 404 #【通过】
+            return {'message': 'There are no TV shows in the table at present.'}, 404
         else:
             total_item_num = len(result)
-            current_page_num = 0 # 用于在第二层循环中统计程序经过几个page了
+            current_page_num = 0
             required_page = ceil(total_item_num/int(page_size))
 
             tv_shows_dict = dict()
             tv_shows_list = []
             final_dict = dict()
             final_list = []
-            # genres_list = []
             schedule_dict = dict()
             rating_dict = dict()
             network_dict = dict()
@@ -696,22 +572,14 @@ class question5(Resource):
                             real_page_size = int(page_size)
                         else:
                             real_page_size = total_item_num - current_page_num * int(page_size)
-                    # print("real page size:", real_page_size)
                     for j in range(real_page_size):
                         for attribute, ele in zip(filter_query_list, result[j + i * int(page_size)]):
-                            # print("attribute:", attribute)
-                            # print("ele:", ele)
                             if attribute == 'genres':
-                                # print("1111111111111111111")
-                                # genres_list.append()
-                                # print("genres_list:", ele.split(','))
                                 tv_shows_dict[attribute] = ele.split(',')
                             elif attribute == 'schedule_time':
                                 schedule_dict["time"] = ele
-                                # print("schedule dict1:", schedule_dict)
                             elif attribute == 'schedule_days':
                                 schedule_dict["days"] = ele.split(',')
-                                # print("schedule dict2:", schedule_dict)
                                 tv_shows_dict["schedule"] = schedule_dict
                             elif attribute == 'rating':
                                 rating_dict["average"] = ele
@@ -731,13 +599,8 @@ class question5(Resource):
                             else:
                                 tv_shows_dict[attribute] = ele
 
-
-                            # print("tv shows dict before:", tv_shows_dict)
                         tv_shows_dict_tmp = copy.deepcopy(tv_shows_dict)
                         tv_shows_list.append(tv_shows_dict_tmp)
-                        # print("j:", j)
-                        # print("tv_shows_dict:", tv_shows_dict)
-                        # print("tv_shows_list:", tv_shows_list)
                     final_dict["page"] = i + 1
                     final_dict["page-size"] = page_size
                     final_dict["tv-shows"] = tv_shows_list
@@ -745,11 +608,9 @@ class question5(Resource):
                         href_dict["href"] = f"http://127.0.0.1:5000/tv-shows?page={i+1},page_size={page_size}"
                         href_dict_tmp = copy.deepcopy(href_dict)
                         links_dict["self"] = href_dict_tmp
-                        # print(links_dict)
                         href_dict["href"] = f"http://127.0.0.1:5000/tv-shows?page={i+1+1},page_size={page_size}"
                         href_dict_tmp = copy.deepcopy(href_dict)
                         links_dict["next"] = href_dict_tmp
-                        # print(links_dict)
                         final_dict["_links"] = links_dict
                     elif i > 0 and i < required_page - 1:
                         href_dict["href"] = f"http://127.0.0.1:5000/tv-shows?page={i+1},page_size={page_size}"
@@ -770,14 +631,12 @@ class question5(Resource):
                         href_dict_tmp = copy.deepcopy(href_dict)
                         links_dict["previous"] = href_dict_tmp
                         final_dict["_links"] = links_dict
-                    # print("final dict:", final_dict)
                     final_dict_tmp = copy.deepcopy(final_dict)
                     final_list.append(final_dict_tmp)
-                    # print("final list:", final_list)
                     tv_shows_list = []
                     links_dict = dict()
 
-                    current_page_num += 1 # final_list里加了一个字典就表明一个page做完了
+                    current_page_num += 1
                 else:
                     if "******Page parameter sets too large, the above page has shown all the available TV shows.******" not in final_list:
                         final_list.append("******Page parameter sets too large, the above page has shown all the available TV shows.******")
@@ -795,7 +654,7 @@ class question6(Resource):
         format = request.args.get('format')
         by = request.args.get('by')
 
-        # 以下代码是怕万一用户上来就直接执行get命令，那么此时未经过Q1的建表就根本没有表格供其查询，所以依然先建表（空不空无所谓）
+        # If the user executes the get command directly, there will be no table to query without creating a table
         con = sqlite3.connect('z5291736.db')
         cur = con.cursor()
         cur.execute(
@@ -805,7 +664,7 @@ class question6(Resource):
             'rating text, network_id integer, network_name text, network_country_name text, network_country_code text, network_country_timezone text, '
             'summary text, last_update text)')
 
-        # 检查所有输入的参数是否valid
+        # Judge whether the ID entered by the user is valid
         standard_format = ['json', 'image']
         standard_by = ['language', 'genres', 'status', 'type']
         if format not in standard_format:
@@ -814,8 +673,6 @@ class question6(Resource):
         if by not in standard_by:
             return {'message': 'The by parameter is invalid.'}, 400  #
 
-        # 开始查询数据库
-        # 先获取total num of TV shows，若没有东西返回说明表为空
         cur.execute(f"SELECT id FROM tvTable")
         id_result = cur.fetchall()
         if id_result == []:
@@ -823,30 +680,26 @@ class question6(Resource):
         else:
             total_num = len(id_result) # total_num = total number of TV shows in database
 
-        # 再获取total num of TV shows updated in 24 hours
-        # 先获取24小时前的时间
+        # get total num of TV shows updated in 24 hours
         last_date = datetime.datetime.today() - datetime.timedelta(days=1)
         last_date_str = last_date.strftime('%Y-%m-%d %H:%M:%S')
-        # print(last_date_str)
 
         cur.execute("SELECT id FROM tvTable WHERE last_update>=?", (last_date_str,))
         id_result = cur.fetchall()
         if id_result == []:
-            return {'message': 'No TV shows have been updated in the past 24 hours.'}, 404 #
+            # return {'message': 'No TV shows have been updated in the past 24 hours.'}, 404 #
+            total_num_in_24 = 0
         else:
             total_num_in_24 = len(id_result)
 
-        # 获取各类by参数
-        # print(by)
+        # get 'by' parameters
         if by == 'language' or by == 'status' or by == 'type':
             cur.execute(f"SELECT {by} FROM tvTable")
             result = cur.fetchall()
             result_list = []
             for i in result:
                 result_list.append(i[0])
-            # print(result_list)
             count = dict(Counter(result_list))
-            # print(count)
         else:
             cur.execute(f"SELECT {by} FROM tvTable")
             result = cur.fetchall()
@@ -863,7 +716,7 @@ class question6(Resource):
             for i in count_tmp:
                 count[i] = count_tmp[i]/total_genres
 
-        # json还是画图
+        # json or image
         if format == 'json':
             return {
                 "total": total_num,
@@ -871,7 +724,7 @@ class question6(Resource):
                 "values": count
             }, 200
         else:
-            # 画第一个子图
+            # Draw the first subgraph
             total_num_list_value = []
             total_num_list_key = []
             total_num_list_key.append("Total Num of TV shows")
@@ -884,22 +737,19 @@ class question6(Resource):
 
             plt.subplot(2, 1, 1)
             plt.bar(total_num_list_key, total_num_list_value, align='center', width=0.1, alpha=0.8, color=('r', 'b'))
-            # plt.legend()
             plt.ylabel("amount")
-            # plt.xlabel("种类")
             plt.title("Total num and total num in last 24 hours", loc='left', fontsize=12, fontweight='semibold')
 
-            # 画第二个子图（饼图）
+            # Draw the second subgraph(pie chart)
             plt.subplot(2, 1, 2)
             label = list(count.keys())
             data = list(count.values())
             plt.pie(data, labels=label, radius=0.5, autopct='%3.2f%%')
-            plt.axis('equal')  # 正圆
+            plt.axis('equal')
             plt.title(f"Percentage of TV shows per {by}", loc='left', fontsize=15, fontweight='semibold')
             plt.legend(loc='upper right', bbox_to_anchor=(1.1, 1.05), fontsize=10, borderaxespad=0.3)
 
             plt.savefig("question6.png")
-            # plt.show()
             return send_file("question6.png")
 
 
